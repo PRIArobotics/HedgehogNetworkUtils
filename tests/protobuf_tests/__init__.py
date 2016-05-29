@@ -2,11 +2,10 @@ from hedgehog.utils.protobuf import MessageType, Message
 from .proto import test_pb2
 
 
-TestMessageType = MessageType(test_pb2.TestMessage)
-parse = TestMessageType.parse
+Msg = MessageType(test_pb2.TestMessage)
 
 
-@TestMessageType.register(test_pb2.Test, 'test')
+@Msg.register(test_pb2.Test, 'test')
 class Test(Message):
     def __init__(self, field):
         self.field = field

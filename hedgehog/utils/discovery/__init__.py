@@ -9,10 +9,10 @@ from .proto import discovery_pb2
 from pyre.pyre import Pyre
 
 
-DiscoveryMessage = MessageType(discovery_pb2.HedgehogDiscoveryMessage)
+Msg = MessageType(discovery_pb2.HedgehogDiscoveryMessage)
 
 
-@DiscoveryMessage.register(discovery_pb2.ServiceRequest, 'request')
+@Msg.register(discovery_pb2.ServiceRequest, 'request')
 class Request(Message):
     def __init__(self, service=''):
         self.service = service
@@ -25,7 +25,7 @@ class Request(Message):
         msg.service = self.service
 
 
-@DiscoveryMessage.register(discovery_pb2.ServiceUpdate, 'update')
+@Msg.register(discovery_pb2.ServiceUpdate, 'update')
 class Update(Message):
     def __init__(self, service='', ports=()):
         self.service = service
@@ -62,11 +62,11 @@ class Node(Pyre):
             self.services = {}
 
         def request_service(self, service):
-            self.node.whisper(self.uuid, DiscoveryMessage.serialize(Request(service)))
+            self.node.whisper(self.uuid, Msg.serialize(Request(service)))
 
         def update_service(self, service):
             ports = self.node.services[service]
-            self.node.whisper(self.uuid, DiscoveryMessage.serialize(Update(service, ports)))
+            self.node.whisper(self.uuid, Msg.serialize(Update(service, ports)))
 
     def __init__(self, name=None, ctx=None, *args, **kwargs):
         super().__init__(name, ctx, *args, **kwargs)
@@ -153,16 +153,16 @@ class Node(Pyre):
         port = endpoint_to_port(endpoint)
         ports = self.services[service]
         ports.add(port)
-        self.shout(service, DiscoveryMessage.serialize(Update(ports=ports)))
+        self.shout(service, Msg.serialize(Update(ports=ports)))
 
     def remove_service(self, service, endpoint):
         port = endpoint_to_port(endpoint)
         ports = self.services[service]
         ports.remove(port)
-        self.shout(service, DiscoveryMessage.serialize(Update(ports=ports)))
+        self.shout(service, Msg.serialize(Update(ports=ports)))
 
     def request_service(self, service):
-        self.shout(service, DiscoveryMessage.serialize(Request()))
+        self.shout(service, Msg.serialize(Request()))
 
     def add_peer(self, name, uuid, address):
         peer = Node.Peer(self, name, uuid, address)

@@ -15,12 +15,12 @@ class ZmqTests(unittest.TestCase):
 
     def test_service_request_message(self):
         old = discovery.Request('test')
-        new = discovery.DiscoveryMessage.parse(discovery.DiscoveryMessage.serialize(old))
+        new = discovery.Msg.parse(discovery.Msg.serialize(old))
         self.assertEqual(new, old)
 
     def test_service_update_message(self):
         old = discovery.Update(ports=[1])
-        new = discovery.DiscoveryMessage.parse(discovery.DiscoveryMessage.serialize(old))
+        new = discovery.Msg.parse(discovery.Msg.serialize(old))
         self.assertEqual(new, old)
 
     def test_endpoint_to_port(self):
