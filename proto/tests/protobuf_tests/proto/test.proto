@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+message TestMessage {
+    oneof payload {
+        Test test = 1;
+    }
+}
+
+message Test {
+    uint32 field = 1;
+}
