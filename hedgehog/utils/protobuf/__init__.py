@@ -8,7 +8,7 @@ class MessageType:
             desc = proto_message_class.DESCRIPTOR
 
             message_class.discriminator = discriminator
-            message_class.type = self.type
+            message_class.type = proto_message_class
             message_class.name = desc.name
             message_class.fields = tuple(field.name for field in desc.fields)
 
@@ -19,9 +19,14 @@ class MessageType:
     def parse(self, data):
         msg = self.type()
         msg.ParseFromString(data)
-        key = msg.WhichOneof('payload')
-        msg_type = self.registry[key]
-        return msg_type.parse(msg)
+        discriminator = msg.WhichOneof('payload')
+        msg_type = self.registry[discriminator]
+        return msg_type._parse(getattr(msg, discriminator))
+
+    def serialize(self, instance):
+        msg = self.type()
+        instance.serialize(getattr(msg, instance.discriminator))
+        return msg.SerializeToString()
 
 
 class Message:
@@ -31,10 +36,6 @@ class Message:
     fields = None
 
     @classmethod
-    def get_oneof(cls, msg):
-        return getattr(msg, cls.discriminator)
-
-    @classmethod
     def _parse(cls, msg):
         raise NotImplementedError
 
@@ -42,12 +43,14 @@ class Message:
         raise NotImplementedError
 
     @classmethod
-    def parse(cls, msg):
-        return cls._parse(cls.get_oneof(msg))
+    def parse(cls, data):
+        msg = cls.type()
+        msg.ParseFromString(data)
+        return cls._parse(msg)
 
-    def serialize(self):
-        msg = self.type()
-        self._serialize(self.get_oneof(msg))
+    def serialize(self, msg=None):
+        msg = msg or self.type()
+        self._serialize(msg)
         return msg.SerializeToString()
 
     def __eq__(self, other):
