@@ -38,30 +38,30 @@ class ZmqTests(unittest.TestCase):
         with discovery.Node("Node 1", ctx) as node1, \
                 discovery.Node("Node 2", ctx) as node2:
 
-            cmd, _, name, _, _ = node1.inbox.recv_multipart()
+            cmd, _, name, _, _ = node1.events.recv_multipart()
             self.assertEqual(cmd, b'ENTER')
             self.assertEqual(name, b'Node 2')
 
-            cmd, _, name, _, _ = node2.inbox.recv_multipart()
+            cmd, _, name, _, _ = node2.events.recv_multipart()
             self.assertEqual(cmd, b'ENTER')
             self.assertEqual(name, b'Node 1')
 
             node2.join('hedgehog_server')
             node1.join('hedgehog_server')
 
-            cmd, _, name, group = node1.inbox.recv_multipart()
+            cmd, _, name, group = node1.events.recv_multipart()
             self.assertEqual(cmd, b'JOIN')
             self.assertEqual(name, b'Node 2')
             self.assertEqual(group, b'hedgehog_server')
 
-            cmd, _, name, group = node2.inbox.recv_multipart()
+            cmd, _, name, group = node2.events.recv_multipart()
             self.assertEqual(cmd, b'JOIN')
             self.assertEqual(name, b'Node 1')
             self.assertEqual(group, b'hedgehog_server')
 
             node2.add_service('hedgehog_server', 5555)
 
-            cmd, _, name, group, message = node1.inbox.recv_multipart()
+            cmd, _, name, group, message = node1.events.recv_multipart()
             self.assertEqual(cmd, b'SHOUT')
             self.assertEqual(name, b'Node 2')
             self.assertEqual(group, b'hedgehog_server')
@@ -69,14 +69,14 @@ class ZmqTests(unittest.TestCase):
 
             node1.request_service('hedgehog_server')
 
-            cmd, peer, name, group, message = node2.inbox.recv_multipart()
+            cmd, uuid, name, group, message = node2.events.recv_multipart()
             self.assertEqual(cmd, b'SHOUT')
             self.assertEqual(name, b'Node 1')
             self.assertEqual(group, b'hedgehog_server')
             self.assertEqual(message, discovery.service_request().SerializeToString())
 
-            node2.update_service('hedgehog_server', peer)
-            cmd, _, name, message = node1.inbox.recv_multipart()
+            node2.peers[uuid].update_service('hedgehog_server')
+            cmd, _, name, message = node1.events.recv_multipart()
             self.assertEqual(cmd, b'WHISPER')
             self.assertEqual(name, b'Node 2')
             self.assertEqual(message, discovery.service_update('hedgehog_server', [5555]).SerializeToString())
