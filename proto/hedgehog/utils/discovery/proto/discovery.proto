@@ -6,7 +6,7 @@ package hedgehog.utils.discovery.proto;
 // The discovery protocol is used in combination with Zyre, which automatically detects when a node goes offline.
 message HedgehogDiscoveryMessage {
     // Contains any one of the different Hedgehog discovery commands.
-    oneof command {
+    oneof payload {
         ServiceRequest request = 1;
         ServiceUpdate update = 2;
     }

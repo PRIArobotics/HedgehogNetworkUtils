@@ -14,20 +14,14 @@ class ZmqTests(unittest.TestCase):
         self.assertEqual(p1a.recv(), msg)
 
     def test_service_request_message(self):
-        msg = discovery.service_request('test')
-        self.assertEqual(msg.WhichOneof('command'), 'request')
-        self.assertEqual(msg.request.service, 'test')
+        old = discovery.Request('test')
+        new = discovery.DiscoveryMessage.parse(discovery.DiscoveryMessage.serialize(old))
+        self.assertEqual(new, old)
 
     def test_service_update_message(self):
-        msg = discovery.service_update(ports=[1])
-        self.assertEqual(msg.WhichOneof('command'), 'update')
-        self.assertEqual(msg.update.service, '')
-        self.assertEqual(msg.update.ports, [1])
-
-        msg = discovery.service_update(ports={1})
-        self.assertEqual(msg.WhichOneof('command'), 'update')
-        self.assertEqual(msg.update.service, '')
-        self.assertEqual(set(msg.update.ports), {1})
+        old = discovery.Update(ports=[1])
+        new = discovery.DiscoveryMessage.parse(discovery.DiscoveryMessage.serialize(old))
+        self.assertEqual(new, old)
 
     def test_endpoint_to_port(self):
         port = discovery.endpoint_to_port(b'tcp://127.0.0.1:5555')

@@ -4,22 +4,40 @@ import threading
 from uuid import UUID
 
 from hedgehog.utils import zmq as zmq_utils
-from .proto.discovery_pb2 import HedgehogDiscoveryMessage, ServiceRequest, ServiceUpdate
+from hedgehog.utils.protobuf import MessageType, Message
+from .proto import discovery_pb2
 from pyre.pyre import Pyre
 
 
-def service_request(service=''):
-    msg = HedgehogDiscoveryMessage()
-    msg.request.service = service
-    return msg
+DiscoveryMessage = MessageType(discovery_pb2.HedgehogDiscoveryMessage)
 
 
-def service_update(service='', ports=None):
-    msg = HedgehogDiscoveryMessage()
-    msg.update.service = service
-    if ports is not None:
-        msg.update.ports.extend(ports)
-    return msg
+@DiscoveryMessage.register(discovery_pb2.ServiceRequest, 'request')
+class Request(Message):
+    def __init__(self, service=''):
+        self.service = service
+
+    @classmethod
+    def _parse(cls, msg):
+        return cls(msg.service)
+
+    def _serialize(self, msg):
+        msg.service = self.service
+
+
+@DiscoveryMessage.register(discovery_pb2.ServiceUpdate, 'update')
+class Update(Message):
+    def __init__(self, service='', ports=()):
+        self.service = service
+        self.ports = set(ports)
+
+    @classmethod
+    def _parse(cls, msg):
+        return cls(msg.service, msg.ports)
+
+    def _serialize(self, msg):
+        msg.service = self.service
+        msg.ports.extend(self.ports)
 
 
 def endpoint_to_port(endpoint):
@@ -44,11 +62,11 @@ class Node(Pyre):
             self.services = {}
 
         def request_service(self, service):
-            self.node.whisper(self.uuid, service_request(service).SerializeToString())
+            self.node.whisper(self.uuid, DiscoveryMessage.serialize(Request(service)))
 
         def update_service(self, service):
             ports = self.node.services[service]
-            self.node.whisper(self.uuid, service_update(service, ports).SerializeToString())
+            self.node.whisper(self.uuid, DiscoveryMessage.serialize(Update(service, ports)))
 
     def __init__(self, name=None, ctx=None, *args, **kwargs):
         super().__init__(name, ctx, *args, **kwargs)
@@ -135,16 +153,16 @@ class Node(Pyre):
         port = endpoint_to_port(endpoint)
         ports = self.services[service]
         ports.add(port)
-        self.shout(service, service_update(ports=ports).SerializeToString())
+        self.shout(service, DiscoveryMessage.serialize(Update(ports=ports)))
 
     def remove_service(self, service, endpoint):
         port = endpoint_to_port(endpoint)
         ports = self.services[service]
         ports.remove(port)
-        self.shout(service, service_update(ports=ports).SerializeToString())
+        self.shout(service, DiscoveryMessage.serialize(Update(ports=ports)))
 
     def request_service(self, service):
-        self.shout(service, service_request().SerializeToString())
+        self.shout(service, DiscoveryMessage.serialize(Request()))
 
     def add_peer(self, name, uuid, address):
         peer = Node.Peer(self, name, uuid, address)
