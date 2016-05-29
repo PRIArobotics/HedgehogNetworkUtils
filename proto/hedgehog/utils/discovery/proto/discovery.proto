@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package hedgehog.utils.discovery.proto;
+
+// `HedgehogDiscoveryMessage` represents a message of any kind of the Hedgehog discovery protocol.
+// The discovery protocol is used in combination with Zyre, which automatically detects when a node goes offline.
+message HedgehogDiscoveryMessage {
+    // Contains any one of the different Hedgehog discovery commands.
+    oneof command {
+        ServiceRequest request = 1;
+        ServiceUpdate update = 2;
+    }
+}
+
+// Request the availability of a service
+message ServiceRequest {
+    // If `service` is empty, the type of service is implicitly given by the Zyre group the message is sent to.
+    // For whispered messages, the `service` is mandatory
+    string service = 1;
+}
+
+// Updates a node's availability of a service
+message ServiceUpdate {
+    // If `service` is empty, the type of service is implicitly given by the Zyre group the message is sent to.
+    // For whispered messages, the `service` is mandatory.
+    string service = 1;
+    // A list of ports on which the service is offered. The transport is assumed to be TCP, the IP address is the
+    // one Zyre determined.
+    repeated uint32 ports = 2;
+}
