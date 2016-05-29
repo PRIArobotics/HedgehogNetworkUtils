@@ -3,9 +3,18 @@ class MessageType:
         self.registry = {}
         self.type = type
 
-    def register(self, message_class):
-        self.registry[message_class.discriminator] = message_class
-        return message_class
+    def register(self, proto_message_class, discriminator):
+        def decorator(message_class):
+            desc = proto_message_class.DESCRIPTOR
+
+            message_class.discriminator = discriminator
+            message_class.type = self.type
+            message_class.name = desc.name
+            message_class.fields = tuple(field.name for field in desc.fields)
+
+            self.registry[message_class.discriminator] = message_class
+            return message_class
+        return decorator
 
     def parse(self, data):
         msg = self.type()
@@ -17,9 +26,9 @@ class MessageType:
 
 class Message:
     discriminator = None
+    type = None
     name = None
     fields = None
-    type = None
 
     @classmethod
     def get_oneof(cls, msg):
