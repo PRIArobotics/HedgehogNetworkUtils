@@ -6,8 +6,7 @@ import zmq
 from pyre.pyre import Pyre
 
 from hedgehog.utils import zmq as zmq_utils
-from . import Msg, Request, Update
-
+from .. import discovery
 
 def endpoint_to_port(endpoint):
     if isinstance(endpoint, zmq.Socket):
@@ -32,11 +31,11 @@ class Node(Pyre):
             self.services = {}
 
         def request_service(self, service):
-            self.node.whisper(self.uuid, Msg.serialize(Request(service)))
+            self.node.whisper(self.uuid, discovery.Msg.serialize(discovery.Request(service)))
 
         def update_service(self, service):
             ports = self.node.services[service]
-            self.node.whisper(self.uuid, Msg.serialize(Update(service, ports)))
+            self.node.whisper(self.uuid, discovery.Msg.serialize(discovery.Update(service, ports)))
 
     def __init__(self, name=None, ctx=None, *args, **kwargs):
         super().__init__(name, ctx, *args, **kwargs)
@@ -48,10 +47,7 @@ class Node(Pyre):
         def inbox_handler():
             msgs = []
 
-            parts = self.inbox.recv_multipart()
-            msgs.append(parts)
-
-            cmd, uuid, name, *payload = parts
+            cmd, uuid, name, *payload = self.inbox.recv_multipart()
             name = name.decode('utf-8')
 
             def handle_request(peer, service):
@@ -60,49 +56,68 @@ class Node(Pyre):
             def handle_update(peer, service, ports):
                 peer.services[service] = {"{}:{}".format(peer.host_address, port) for port in ports}
 
+                endpoints = [endpoint
+                             for peer in self.peers.values()
+                             for endpoint in peer.services[service]]
+                return discovery.Service(service.encode('utf-8'), endpoints)
+
             if cmd == b'ENTER':
-                _, address = payload
+                headers, address = payload
                 address = address.decode('utf-8')
+
+                msgs.append(discovery.Enter(uuid, name, headers, address))
 
                 self.add_peer(name, uuid, address)
             elif cmd == b'EXIT':
                 del self.peers[uuid]
+
+                msgs.append(discovery.Exit(uuid, name))
             elif cmd == b'JOIN':
                 group, = payload
                 group = group.decode('utf-8')
-                peer = self.peers[uuid]
 
+                msgs.append(discovery.Join(uuid, name, group))
+
+                peer = self.peers[uuid]
                 peer.services[group] = set()
             elif cmd == b'LEAVE':
                 group, = payload
                 group = group.decode('utf-8')
-                peer = self.peers[uuid]
 
+                msgs.append(discovery.Leave(uuid, name, group))
+
+                peer = self.peers[uuid]
                 del peer.services[group]
             elif cmd == b'SHOUT':
                 group, message = payload
                 group = group.decode('utf-8')
-                message = Msg.parse(message)
-                peer = self.peers[uuid]
 
+                msgs.append(discovery.Shout(uuid, name, group, message))
+
+                peer = self.peers[uuid]
+                message = discovery.Msg.parse(message)
                 service = message.service or group
-                if isinstance(message, Request):
+
+                if isinstance(message, discovery.Request):
                     handle_request(peer, service)
-                elif isinstance(message, Update):
-                    handle_update(peer, service, message.ports)
+                elif isinstance(message, discovery.Update):
+                    msgs.append(handle_update(peer, service, message.ports))
             elif cmd == b'WHISPER':
                 message, = payload
-                message = Msg.parse(message)
-                peer = self.peers[uuid]
 
+                msgs.append(discovery.Whisper(uuid, name, message))
+
+                peer = self.peers[uuid]
+                message = discovery.Msg.parse(message)
                 service = message.service
-                if isinstance(message, Request):
+
+                if isinstance(message, discovery.Request):
                     handle_request(peer, service)
-                elif isinstance(message, Update):
-                    handle_update(peer, service, message.ports)
+                elif isinstance(message, discovery.Update):
+                    msgs.append(handle_update(peer, service, message.ports))
 
             for msg in msgs:
-                events.send_multipart(msg)
+                events.send(discovery.ApiMsg.serialize(msg))
 
         def kill_handler():
             events.recv()
@@ -125,16 +140,16 @@ class Node(Pyre):
         port = endpoint_to_port(endpoint)
         ports = self.services[service]
         ports.add(port)
-        self.shout(service, Msg.serialize(Update(ports=ports)))
+        self.shout(service, discovery.Msg.serialize(discovery.Update(ports=ports)))
 
     def remove_service(self, service, endpoint):
         port = endpoint_to_port(endpoint)
         ports = self.services[service]
         ports.remove(port)
-        self.shout(service, Msg.serialize(Update(ports=ports)))
+        self.shout(service, discovery.Msg.serialize(discovery.Update(ports=ports)))
 
     def request_service(self, service):
-        self.shout(service, Msg.serialize(Request()))
+        self.shout(service, discovery.Msg.serialize(discovery.Request()))
 
     def add_peer(self, name, uuid, address):
         peer = Node.Peer(self, name, uuid, address)

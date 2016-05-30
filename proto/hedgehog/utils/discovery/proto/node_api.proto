@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package hedgehog.utils.discovery.proto;
+
+message NodeApiMessage {
+    oneof payload {
+        EnterMessage enter = 1;
+        ExitMessage exit = 2;
+        JoinMessage join = 3;
+        LeaveMessage leave = 4;
+        ShoutMessage shout = 5;
+        WhisperMessage whisper = 6;
+        ServiceMessage service = 7;
+        RegisterServiceMessage register_service = 8;
+    }
+}
+
+message EnterMessage {
+    bytes uuid = 1;
+    string name = 2;
+    bytes headers = 3;
+    string address = 4;
+}
+
+message ExitMessage {
+    bytes uuid = 1;
+    string name = 2;
+}
+
+message JoinMessage {
+    bytes uuid = 1;
+    string name = 2;
+    string group = 3;
+}
+
+message LeaveMessage {
+    bytes uuid = 1;
+    string name = 2;
+    string group = 3;
+}
+
+message ShoutMessage {
+    bytes uuid = 1;
+    string name = 2;
+    string group = 3;
+    bytes payload = 4;
+}
+
+message WhisperMessage {
+    bytes uuid = 1;
+    string name = 2;
+    bytes payload = 3;
+}
+
+message ServiceMessage {
+    string service = 1;
+    repeated string endpoints = 2;
+}
+
+message RegisterServiceMessage {
+    string service = 1;
+    repeated uint32 added_ports = 2;
+    repeated uint32 removed_ports = 3;
+}

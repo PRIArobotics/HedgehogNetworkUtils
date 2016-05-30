@@ -1,5 +1,6 @@
 import unittest
 import zmq
+import pickle
 from hedgehog.utils import zmq as zmq_utils
 from hedgehog.utils import discovery
 from hedgehog.utils.discovery.node import Node, endpoint_to_port
@@ -33,45 +34,53 @@ class ZmqTests(unittest.TestCase):
         with Node("Node 1", ctx) as node1, \
                 Node("Node 2", ctx) as node2:
 
-            cmd, _, name, _, _ = node1.events.recv_multipart()
-            self.assertEqual(cmd, b'ENTER')
-            self.assertEqual(name, b'Node 2')
+            msg = discovery.ApiMsg.parse(node1.events.recv())
+            self.assertIsInstance(msg, discovery.Enter)
+            self.assertEqual(msg.name, 'Node 2')
 
-            cmd, _, name, _, _ = node2.events.recv_multipart()
-            self.assertEqual(cmd, b'ENTER')
-            self.assertEqual(name, b'Node 1')
+            endpoint = msg.address.rsplit(':', 1)[0] + ':5555'
+
+            msg = discovery.ApiMsg.parse(node2.events.recv())
+            self.assertIsInstance(msg, discovery.Enter)
+            self.assertEqual(msg.name, 'Node 1')
 
             node2.join('hedgehog_server')
             node1.join('hedgehog_server')
 
-            cmd, _, name, group = node1.events.recv_multipart()
-            self.assertEqual(cmd, b'JOIN')
-            self.assertEqual(name, b'Node 2')
-            self.assertEqual(group, b'hedgehog_server')
+            msg = discovery.ApiMsg.parse(node1.events.recv())
+            self.assertIsInstance(msg, discovery.Join)
+            self.assertEqual(msg.name, 'Node 2')
+            self.assertEqual(msg.group, 'hedgehog_server')
 
-            cmd, _, name, group = node2.events.recv_multipart()
-            self.assertEqual(cmd, b'JOIN')
-            self.assertEqual(name, b'Node 1')
-            self.assertEqual(group, b'hedgehog_server')
+            msg = discovery.ApiMsg.parse(node2.events.recv())
+            self.assertIsInstance(msg, discovery.Join)
+            self.assertEqual(msg.name, 'Node 1')
+            self.assertEqual(msg.group, 'hedgehog_server')
 
             node2.add_service('hedgehog_server', 5555)
 
-            cmd, _, name, group, message = node1.events.recv_multipart()
-            self.assertEqual(cmd, b'SHOUT')
-            self.assertEqual(name, b'Node 2')
-            self.assertEqual(group, b'hedgehog_server')
-            self.assertEqual(message, discovery.Msg.serialize(discovery.Update(ports=[5555])))
+            msg = discovery.ApiMsg.parse(node1.events.recv())
+            self.assertIsInstance(msg, discovery.Shout)
+            self.assertEqual(msg.name, 'Node 2')
+            self.assertEqual(msg.group, 'hedgehog_server')
+            self.assertEqual(msg.payload, discovery.Msg.serialize(discovery.Update(ports=[5555])))
 
             node1.request_service('hedgehog_server')
 
-            cmd, uuid, name, group, message = node2.events.recv_multipart()
-            self.assertEqual(cmd, b'SHOUT')
-            self.assertEqual(name, b'Node 1')
-            self.assertEqual(group, b'hedgehog_server')
-            self.assertEqual(message, discovery.Msg.serialize(discovery.Request()))
+            msg = discovery.ApiMsg.parse(node2.events.recv())
+            self.assertIsInstance(msg, discovery.Shout)
+            self.assertEqual(msg.name, 'Node 1')
+            self.assertEqual(msg.group, 'hedgehog_server')
+            self.assertEqual(msg.payload, discovery.Msg.serialize(discovery.Request()))
 
-            node2.peers[uuid].update_service('hedgehog_server')
-            cmd, _, name, message = node1.events.recv_multipart()
-            self.assertEqual(cmd, b'WHISPER')
-            self.assertEqual(name, b'Node 2')
-            self.assertEqual(message, discovery.Msg.serialize(discovery.Update('hedgehog_server', [5555])))
+            node2.peers[msg.uuid].update_service('hedgehog_server')
+
+            msg = discovery.ApiMsg.parse(node1.events.recv())
+            self.assertIsInstance(msg, discovery.Service)
+            self.assertEqual(msg.service, 'hedgehog_server')
+            self.assertEqual(msg.endpoints, {endpoint})
+
+            msg = discovery.ApiMsg.parse(node1.events.recv())
+            self.assertIsInstance(msg, discovery.Whisper)
+            self.assertEqual(msg.name, 'Node 2')
+            self.assertEqual(msg.payload, discovery.Msg.serialize(discovery.Update('hedgehog_server', [5555])))
