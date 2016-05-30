@@ -76,11 +76,13 @@ class ZmqTests(unittest.TestCase):
             node2.peers[msg.uuid].update_service('hedgehog_server')
 
             msg = discovery.ApiMsg.parse(node1.events.recv())
-            self.assertIsInstance(msg, discovery.Service)
-            self.assertEqual(msg.service, 'hedgehog_server')
-            self.assertEqual(msg.endpoints, {endpoint})
-
-            msg = discovery.ApiMsg.parse(node1.events.recv())
             self.assertIsInstance(msg, discovery.Whisper)
             self.assertEqual(msg.name, 'Node 2')
             self.assertEqual(msg.payload, discovery.Msg.serialize(discovery.Update('hedgehog_server', [5555])))
+
+            node1.get_endpoints('hedgehog_server')
+
+            msg = discovery.ApiMsg.parse(node1.events.recv())
+            self.assertIsInstance(msg, discovery.Service)
+            self.assertEqual(msg.service, 'hedgehog_server')
+            self.assertEqual(msg.endpoints, {endpoint})

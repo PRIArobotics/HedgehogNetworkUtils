@@ -8,6 +8,7 @@ from pyre.pyre import Pyre
 from hedgehog.utils import zmq as zmq_utils
 from .. import discovery
 
+
 def endpoint_to_port(endpoint):
     if isinstance(endpoint, zmq.Socket):
         endpoint = endpoint.last_endpoint
@@ -87,17 +88,10 @@ class Node(Pyre):
 
             if isinstance(message, discovery.Request):
                 peer.update_service(service)
-
-                events.send(discovery.ApiMsg.serialize(discovery.Shout(uuid, name, group, payload)))
             elif isinstance(message, discovery.Update):
                 peer.services[service] = {"{}:{}".format(peer.host_address, port) for port in message.ports}
 
-                endpoints = [endpoint
-                             for peer in self.peers.values()
-                             for endpoint in peer.services[service]]
-
-                events.send(discovery.ApiMsg.serialize(discovery.Shout(uuid, name, group, payload)))
-                events.send(discovery.ApiMsg.serialize(discovery.Service(service.encode('utf-8'), endpoints)))
+            events.send(discovery.ApiMsg.serialize(discovery.Shout(uuid, name, group, payload)))
 
         def inbox_handle_whisper(uuid, name, payload):
             name = name.decode('utf-8')
@@ -108,17 +102,10 @@ class Node(Pyre):
 
             if isinstance(message, discovery.Request):
                 peer.update_service(service)
-
-                events.send(discovery.ApiMsg.serialize(discovery.Whisper(uuid, name, payload)))
             elif isinstance(message, discovery.Update):
                 peer.services[service] = {"{}:{}".format(peer.host_address, port) for port in message.ports}
 
-                endpoints = [endpoint
-                             for peer in self.peers.values()
-                             for endpoint in peer.services[service]]
-
-                events.send(discovery.ApiMsg.serialize(discovery.Whisper(uuid, name, payload)))
-                events.send(discovery.ApiMsg.serialize(discovery.Service(service.encode('utf-8'), endpoints)))
+            events.send(discovery.ApiMsg.serialize(discovery.Whisper(uuid, name, payload)))
 
         inbox_handlers = {
             b'ENTER': inbox_handle_enter,
@@ -143,6 +130,12 @@ class Node(Pyre):
                 ports |= msg.added_ports
                 ports -= msg.removed_ports
                 self.shout(msg.service, discovery.Msg.serialize(discovery.Update(ports=ports)))
+
+            if isinstance(msg, discovery.Service):
+                endpoints = [endpoint
+                             for peer in self.peers.values()
+                             for endpoint in peer.services[msg.service]]
+                events.send(discovery.ApiMsg.serialize(discovery.Service(msg.service, endpoints)))
 
         def events_handle_out(group, msg):
             self.shout(group.decode('utf-8'), msg)
@@ -174,6 +167,10 @@ class Node(Pyre):
         port = endpoint_to_port(endpoint)
         self.events.send_multipart(
             [b'API', discovery.ApiMsg.serialize(discovery.RegisterService(service, removed_ports={port}))])
+
+    def get_endpoints(self, service):
+        self.events.send_multipart(
+            [b'API', discovery.ApiMsg.serialize(discovery.Service(service))])
 
     def request_service(self, service):
         self.events.send_multipart(
