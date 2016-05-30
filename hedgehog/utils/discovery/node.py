@@ -119,15 +119,28 @@ class Node(Pyre):
             for msg in msgs:
                 events.send(discovery.ApiMsg.serialize(msg))
 
-        def kill_handler():
-            events.recv()
-            for socket in list(poller.sockets):
-                socket.close()
-                poller.unregister(socket)
+        def events_handler():
+            kind, *msg = events.recv_multipart()
+            if kind == b'EXIT':
+                for socket in list(poller.sockets):
+                    socket.close()
+                    poller.unregister(socket)
+            elif kind == b'API':
+                msg, = msg
+                msg = discovery.ApiMsg.parse(msg)
+
+                if isinstance(msg, discovery.RegisterService):
+                    ports = self.services[msg.service]
+                    ports |= msg.added_ports
+                    ports -= msg.removed_ports
+                    self.shout(msg.service, discovery.Msg.serialize(discovery.Update(ports=ports)))
+            elif kind == b'OUT':
+                group, msg = msg
+                self.shout(group.decode('utf-8'), msg)
 
         poller = zmq_utils.Poller()
         poller.register(self.inbox, zmq.POLLIN, inbox_handler)
-        poller.register(events, zmq.POLLIN, kill_handler)
+        poller.register(events, zmq.POLLIN, events_handler)
 
         def poll():
             while len(poller.sockets) > 0:
@@ -138,18 +151,17 @@ class Node(Pyre):
 
     def add_service(self, service, endpoint):
         port = endpoint_to_port(endpoint)
-        ports = self.services[service]
-        ports.add(port)
-        self.shout(service, discovery.Msg.serialize(discovery.Update(ports=ports)))
+        self.events.send_multipart(
+            [b'API', discovery.ApiMsg.serialize(discovery.RegisterService(service, added_ports={port}))])
 
     def remove_service(self, service, endpoint):
         port = endpoint_to_port(endpoint)
-        ports = self.services[service]
-        ports.remove(port)
-        self.shout(service, discovery.Msg.serialize(discovery.Update(ports=ports)))
+        self.events.send_multipart(
+            [b'API', discovery.ApiMsg.serialize(discovery.RegisterService(service, removed_ports={port}))])
 
     def request_service(self, service):
-        self.shout(service, discovery.Msg.serialize(discovery.Request()))
+        self.events.send_multipart(
+            [b'OUT', service.encode('utf-8'), discovery.Msg.serialize(discovery.Request())])
 
     def add_peer(self, name, uuid, address):
         peer = Node.Peer(self, name, uuid, address)
@@ -158,7 +170,7 @@ class Node(Pyre):
 
     def stop(self):
         super().stop()
-        self.events.send(b'')
+        self.events.send(b'EXIT')
 
     def __enter__(self):
         self.start()
