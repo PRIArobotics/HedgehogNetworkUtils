@@ -29,7 +29,7 @@ class Node(Pyre):
             self.uuid = UUID(bytes=uuid)
             self.address = address
             self.host_address = address.rsplit(':', 1)[0]
-            self.services = {}
+            self.services = defaultdict(set)
 
         def request_service(self, service):
             self.node.whisper(self.uuid, discovery.Msg.serialize(discovery.Request(service)))
