@@ -59,6 +59,7 @@ class Node(Pyre):
             self.name = name
             self.uuid = UUID(bytes=uuid)
             self.address = address
+            self.host_address = address.rsplit(':', 1)[0]
             self.services = {}
 
         def request_service(self, service):
@@ -76,20 +77,19 @@ class Node(Pyre):
         self.events, events = zmq_utils.pipe(ctx)
 
         def inbox_handler():
+            msgs = []
+
             parts = self.inbox.recv_multipart()
+            msgs.append(parts)
+
             cmd, uuid, name, *payload = parts
             name = name.decode('utf-8')
-
-            def decode(frame):
-                msg = HedgehogDiscoveryMessage()
-                msg.ParseFromString(frame)
-                return msg
 
             def handle_request(peer, service):
                 peer.update_service(service)
 
             def handle_update(peer, service, ports):
-                peer.services[service] = set(ports)
+                peer.services[service] = {"{}:{}".format(peer.host_address, port) for port in ports}
 
             if cmd == b'ENTER':
                 _, address = payload
@@ -113,24 +113,27 @@ class Node(Pyre):
             elif cmd == b'SHOUT':
                 group, message = payload
                 group = group.decode('utf-8')
-                message = decode(message)
+                message = Msg.parse(message)
                 peer = self.peers[uuid]
 
-                if message.WhichOneof('command') == 'request':
+                service = message.service or group
+                if isinstance(message, Request):
+                    handle_request(peer, service)
+                elif isinstance(message, Update):
                     handle_request(peer, message.request.service or group)
-                elif message.WhichOneof('command') == 'update':
-                    handle_update(peer, message.update.service or group, message.update.ports)
             elif cmd == b'WHISPER':
                 message, = payload
-                message = decode(message)
+                message = Msg.parse(message)
                 peer = self.peers[uuid]
 
-                if message.WhichOneof('command') == 'request':
-                    handle_request(peer, message.request.service)
-                elif message.WhichOneof('command') == 'update':
+                service = message.service
+                if isinstance(message, Request):
+                    handle_request(peer, service)
+                elif isinstance(message, Update):
                     handle_update(peer, message.update.service, message.update.ports)
 
-            events.send_multipart(parts)
+            for msg in msgs:
+                events.send_multipart(msg)
 
         def kill_handler():
             events.recv()

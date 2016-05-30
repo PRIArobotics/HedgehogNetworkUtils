@@ -59,7 +59,7 @@ class ZmqTests(unittest.TestCase):
             self.assertEqual(cmd, b'SHOUT')
             self.assertEqual(name, b'Node 2')
             self.assertEqual(group, b'hedgehog_server')
-            self.assertEqual(message, discovery.service_update(ports=[5555]).SerializeToString())
+            self.assertEqual(message, discovery.Msg.serialize(discovery.Update(ports=[5555])))
 
             node1.request_service('hedgehog_server')
 
@@ -67,10 +67,10 @@ class ZmqTests(unittest.TestCase):
             self.assertEqual(cmd, b'SHOUT')
             self.assertEqual(name, b'Node 1')
             self.assertEqual(group, b'hedgehog_server')
-            self.assertEqual(message, discovery.service_request().SerializeToString())
+            self.assertEqual(message, discovery.Msg.serialize(discovery.Request()))
 
             node2.peers[uuid].update_service('hedgehog_server')
             cmd, _, name, message = node1.events.recv_multipart()
             self.assertEqual(cmd, b'WHISPER')
             self.assertEqual(name, b'Node 2')
-            self.assertEqual(message, discovery.service_update('hedgehog_server', [5555]).SerializeToString())
+            self.assertEqual(message, discovery.Msg.serialize(discovery.Update('hedgehog_server', [5555])))
