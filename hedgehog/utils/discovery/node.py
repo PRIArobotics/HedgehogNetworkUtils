@@ -44,75 +44,81 @@ class Node(Pyre):
 
         self.events, events = zmq_utils.pipe(ctx)
 
-        def inbox_handle_enter(msgs, uuid, name, headers, address):
+        def inbox_handle_enter(uuid, name, headers, address):
             name = name.decode('utf-8')
             address = address.decode('utf-8')
 
-            msgs.append(discovery.Enter(uuid, name, headers, address))
-
             self.add_peer(name, uuid, address)
 
-        def inbox_handle_exit(msgs, uuid, name):
+            events.send(discovery.ApiMsg.serialize(discovery.Enter(uuid, name, headers, address)))
+
+        def inbox_handle_exit(uuid, name):
             name = name.decode('utf-8')
 
             del self.peers[uuid]
 
-            msgs.append(discovery.Exit(uuid, name))
+            events.send(discovery.ApiMsg.serialize(discovery.Exit(uuid, name)))
 
-        def inbox_handle_join(msgs, uuid, name, group):
+        def inbox_handle_join(uuid, name, group):
             name = name.decode('utf-8')
             group = group.decode('utf-8')
-
-            msgs.append(discovery.Join(uuid, name, group))
 
             peer = self.peers[uuid]
             peer.services[group] = set()
 
-        def inbox_handle_leave(msgs, uuid, name, group):
+            events.send(discovery.ApiMsg.serialize(discovery.Join(uuid, name, group)))
+
+        def inbox_handle_leave(uuid, name, group):
             name = name.decode('utf-8')
             group = group.decode('utf-8')
-
-            msgs.append(discovery.Leave(uuid, name, group))
 
             peer = self.peers[uuid]
             del peer.services[group]
 
-        def handle_update(msgs, peer, service, ports):
-            peer.services[service] = {"{}:{}".format(peer.host_address, port) for port in ports}
+            events.send(discovery.ApiMsg.serialize(discovery.Leave(uuid, name, group)))
 
-            endpoints = [endpoint
-                         for peer in self.peers.values()
-                         for endpoint in peer.services[service]]
-            msgs.append(discovery.Service(service.encode('utf-8'), endpoints))
-
-        def inbox_handle_shout(msgs, uuid, name, group, message):
+        def inbox_handle_shout(uuid, name, group, payload):
             name = name.decode('utf-8')
             group = group.decode('utf-8')
 
-            msgs.append(discovery.Shout(uuid, name, group, message))
-
             peer = self.peers[uuid]
-            message = discovery.Msg.parse(message)
+            message = discovery.Msg.parse(payload)
             service = message.service or group
 
             if isinstance(message, discovery.Request):
                 peer.update_service(service)
-            elif isinstance(message, discovery.Update):
-                handle_update(msgs, peer, service, message.ports)
 
-        def inbox_handle_whisper(msgs, uuid, name, message):
+                events.send(discovery.ApiMsg.serialize(discovery.Shout(uuid, name, group, payload)))
+            elif isinstance(message, discovery.Update):
+                peer.services[service] = {"{}:{}".format(peer.host_address, port) for port in message.ports}
+
+                endpoints = [endpoint
+                             for peer in self.peers.values()
+                             for endpoint in peer.services[service]]
+
+                events.send(discovery.ApiMsg.serialize(discovery.Shout(uuid, name, group, payload)))
+                events.send(discovery.ApiMsg.serialize(discovery.Service(service.encode('utf-8'), endpoints)))
+
+        def inbox_handle_whisper(uuid, name, payload):
             name = name.decode('utf-8')
 
-            msgs.append(discovery.Whisper(uuid, name, message))
-
             peer = self.peers[uuid]
-            message = discovery.Msg.parse(message)
+            message = discovery.Msg.parse(payload)
             service = message.service
 
             if isinstance(message, discovery.Request):
                 peer.update_service(service)
+
+                events.send(discovery.ApiMsg.serialize(discovery.Whisper(uuid, name, payload)))
             elif isinstance(message, discovery.Update):
-                handle_update(msgs, peer, service, message.ports)
+                peer.services[service] = {"{}:{}".format(peer.host_address, port) for port in message.ports}
+
+                endpoints = [endpoint
+                             for peer in self.peers.values()
+                             for endpoint in peer.services[service]]
+
+                events.send(discovery.ApiMsg.serialize(discovery.Whisper(uuid, name, payload)))
+                events.send(discovery.ApiMsg.serialize(discovery.Service(service.encode('utf-8'), endpoints)))
 
         inbox_handlers = {
             b'ENTER': inbox_handle_enter,
@@ -121,16 +127,8 @@ class Node(Pyre):
             b'LEAVE': inbox_handle_leave,
             b'SHOUT': inbox_handle_shout,
             b'WHISPER': inbox_handle_whisper,
+            b'STOP': lambda uuid, name: None,
         }
-
-        def inbox_handler():
-            msgs = []
-
-            cmd, *payload = self.inbox.recv_multipart()
-            inbox_handlers[cmd](msgs, *payload)
-
-            for msg in msgs:
-                events.send(discovery.ApiMsg.serialize(msg))
 
         def events_handle_exit():
             for socket in list(poller.sockets):
@@ -155,18 +153,15 @@ class Node(Pyre):
             b'OUT': events_handle_out,
         }
 
-        def events_handler():
-            cmd, *payload = events.recv_multipart()
-            events_handlers[cmd](*payload)
-
         poller = zmq_utils.Poller()
-        poller.register(self.inbox, zmq.POLLIN, inbox_handler)
-        poller.register(events, zmq.POLLIN, events_handler)
+        poller.register(self.inbox, zmq.POLLIN, inbox_handlers)
+        poller.register(events, zmq.POLLIN, events_handlers)
 
         def poll():
             while len(poller.sockets) > 0:
-                for _, _, handler in poller.poll():
-                    handler()
+                for sock, _, handlers in poller.poll():
+                    cmd, *payload = sock.recv_multipart()
+                    handlers[cmd](*payload)
 
         threading.Thread(target=poll).start()
 
