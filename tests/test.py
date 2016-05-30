@@ -2,6 +2,7 @@ import unittest
 import zmq
 from hedgehog.utils import zmq as zmq_utils
 from hedgehog.utils import discovery
+from hedgehog.utils.discovery.node import Node, endpoint_to_port
 
 
 class ZmqTests(unittest.TestCase):
@@ -24,13 +25,13 @@ class ZmqTests(unittest.TestCase):
         self.assertEqual(new, old)
 
     def test_endpoint_to_port(self):
-        port = discovery.endpoint_to_port(b'tcp://127.0.0.1:5555')
+        port = endpoint_to_port(b'tcp://127.0.0.1:5555')
         self.assertEqual(port, 5555)
 
     def test_discovery(self):
         ctx = zmq.Context.instance()
-        with discovery.Node("Node 1", ctx) as node1, \
-                discovery.Node("Node 2", ctx) as node2:
+        with Node("Node 1", ctx) as node1, \
+                Node("Node 2", ctx) as node2:
 
             cmd, _, name, _, _ = node1.events.recv_multipart()
             self.assertEqual(cmd, b'ENTER')
