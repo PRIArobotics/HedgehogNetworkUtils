@@ -1,7 +1,7 @@
 from collections import defaultdict
-from uuid import UUID
 
 import zmq
+import pickle
 import logging
 from pyre import zhelper
 from pyre.pyre import Pyre
@@ -30,17 +30,21 @@ class NodeActor(object):
         def __init__(self, node, name, uuid, address):
             self.node = node
             self.name = name
-            self.uuid = UUID(bytes=uuid)
+            self.uuid = uuid
             self.address = address
             self.host_address = address.rsplit(':', 1)[0]
             self.services = defaultdict(set)
 
         def request_service(self, service):
-            self.node.whisper(self.uuid, discovery.Msg.serialize(discovery.Request(service)))
+            self.node.actor.send_unicode("WHISPER", flags=zmq.SNDMORE)
+            self.node.actor.send(self.uuid, flags=zmq.SNDMORE)
+            self.node.actor.send(discovery.Msg.serialize(discovery.Request(service)))
 
         def update_service(self, service):
             ports = self.node.services[service]
-            self.node.whisper(self.uuid, discovery.Msg.serialize(discovery.Update(service, ports)))
+            self.node.actor.send_unicode("WHISPER", flags=zmq.SNDMORE)
+            self.node.actor.send(self.uuid, flags=zmq.SNDMORE)
+            self.node.actor.send(discovery.Msg.serialize(discovery.Update(service, ports)))
 
     def __init__(self, ctx, pipe, queue, actor, outbox, backend):
         self.pipe = pipe
@@ -86,23 +90,24 @@ class NodeActor(object):
     def recv_api(self):
         request = self.pipe.recv_multipart()
         command = request[0].decode('UTF-8')
-        if command == "API":
-            msg = discovery.ApiMsg.parse(request[1])
+        if command == "REGISTER":
+            service = request[1].decode('UTF-8')
+            added = pickle.loads(request[2])
+            removed = pickle.loads(request[3])
 
-            if isinstance(msg, discovery.RegisterService):
-                ports = self.services[msg.service]
-                ports |= msg.added_ports
-                ports -= msg.removed_ports
+            ports = self.services[service]
+            ports |= added
+            ports -= removed
 
-                self.actor.send_unicode("SHOUT", flags=zmq.SNDMORE)
-                self.actor.send_unicode(msg.service, flags=zmq.SNDMORE)
-                self.actor.send(discovery.Msg.serialize(discovery.Update(ports=ports)))
-
-            if isinstance(msg, discovery.Service):
-                endpoints = [endpoint
-                             for peer in self.peers.values()
-                             for endpoint in peer.services[msg.service]]
-                self.pipe.send(discovery.ApiMsg.serialize(discovery.Service(msg.service, endpoints)))
+            self.actor.send_unicode("SHOUT", flags=zmq.SNDMORE)
+            self.actor.send_unicode(service, flags=zmq.SNDMORE)
+            self.actor.send(discovery.Msg.serialize(discovery.Update(ports=ports)))
+        elif command == "SERVICE":
+            service = request[1].decode('UTF-8')
+            endpoints = {endpoint
+                         for peer in self.peers.values()
+                         for endpoint in peer.services[service]}
+            self.pipe.send_pyobj(endpoints)
         else:
             self.actor.send_multipart(request)
 
@@ -177,17 +182,22 @@ class Node(Pyre):
 
     def add_service(self, service, endpoint):
         port = endpoint_to_port(endpoint)
-        self.actor.send_multipart(
-            [b'API', discovery.ApiMsg.serialize(discovery.RegisterService(service, added_ports={port}))])
+        self.actor.send_unicode("REGISTER", zmq.SNDMORE)
+        self.actor.send_unicode(service, zmq.SNDMORE)
+        self.actor.send_pyobj({port}, zmq.SNDMORE)
+        self.actor.send_pyobj(set())
 
     def remove_service(self, service, endpoint):
         port = endpoint_to_port(endpoint)
-        self.actor.send_multipart(
-            [b'API', discovery.ApiMsg.serialize(discovery.RegisterService(service, removed_ports={port}))])
+        self.actor.send_unicode("REGISTER", zmq.SNDMORE)
+        self.actor.send_unicode(service, zmq.SNDMORE)
+        self.actor.send_pyobj(set(), zmq.SNDMORE)
+        self.actor.send_pyobj({port})
 
     def get_endpoints(self, service):
-        self.actor.send_multipart(
-            [b'API', discovery.ApiMsg.serialize(discovery.Service(service))])
+        self.actor.send_unicode("SERVICE", zmq.SNDMORE)
+        self.actor.send_unicode(service)
+        return self.actor.recv_pyobj()
 
     def request_service(self, service):
         self.shout(service, discovery.Msg.serialize(discovery.Request()))
