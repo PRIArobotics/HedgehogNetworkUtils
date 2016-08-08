@@ -1,12 +1,16 @@
 from collections import defaultdict
 from uuid import UUID
-import threading
 
 import zmq
+import logging
+from pyre import zhelper
 from pyre.pyre import Pyre
+from pyre.zactor import ZActor
 
 from hedgehog.utils import zmq as zmq_utils
 from .. import discovery
+
+logger = logging.getLogger(__name__)
 
 
 def endpoint_to_port(endpoint):
@@ -21,7 +25,7 @@ def endpoint_to_port(endpoint):
         raise ValueError(endpoint)
 
 
-class Node(Pyre):
+class NodeActor(object):
     class Peer:
         def __init__(self, node, name, uuid, address):
             self.node = node
@@ -38,152 +42,155 @@ class Node(Pyre):
             ports = self.node.services[service]
             self.node.whisper(self.uuid, discovery.Msg.serialize(discovery.Update(service, ports)))
 
-    def __init__(self, name=None, ctx=None, *args, **kwargs):
-        super().__init__(name, ctx, *args, **kwargs)
+    def __init__(self, ctx, pipe, queue, actor, outbox, backend):
+        self.pipe = pipe
+        self.queue = queue
+        self.actor = actor
+        self.outbox = outbox
+        self.backend = backend
+
         self.services = defaultdict(set)
         self.peers = {}
 
-        self.events, events = zmq_utils.pipe(ctx)
-
-        def inbox_handle_enter(uuid, name, headers, address):
-            name = name.decode('utf-8')
-            address = address.decode('utf-8')
-
-            self.add_peer(name, uuid, address)
-
-            events.send(discovery.ApiMsg.serialize(discovery.Enter(uuid, name, headers, address)))
-
-        def inbox_handle_exit(uuid, name):
-            name = name.decode('utf-8')
-
-            del self.peers[uuid]
-
-            events.send(discovery.ApiMsg.serialize(discovery.Exit(uuid, name)))
-
-        def inbox_handle_join(uuid, name, group):
-            name = name.decode('utf-8')
-            group = group.decode('utf-8')
-
-            peer = self.peers[uuid]
-            peer.services[group] = set()
-
-            events.send(discovery.ApiMsg.serialize(discovery.Join(uuid, name, group)))
-
-        def inbox_handle_leave(uuid, name, group):
-            name = name.decode('utf-8')
-            group = group.decode('utf-8')
-
-            peer = self.peers[uuid]
-            del peer.services[group]
-
-            events.send(discovery.ApiMsg.serialize(discovery.Leave(uuid, name, group)))
-
-        def inbox_handle_shout(uuid, name, group, payload):
-            name = name.decode('utf-8')
-            group = group.decode('utf-8')
-
-            peer = self.peers[uuid]
-            message = discovery.Msg.parse(payload)
-            service = message.service or group
-
-            if isinstance(message, discovery.Request):
-                peer.update_service(service)
-            elif isinstance(message, discovery.Update):
-                peer.services[service] = {"{}:{}".format(peer.host_address, port) for port in message.ports}
-
-            events.send(discovery.ApiMsg.serialize(discovery.Shout(uuid, name, group, payload)))
-
-        def inbox_handle_whisper(uuid, name, payload):
-            name = name.decode('utf-8')
-
-            peer = self.peers[uuid]
-            message = discovery.Msg.parse(payload)
-            service = message.service
-
-            if isinstance(message, discovery.Request):
-                peer.update_service(service)
-            elif isinstance(message, discovery.Update):
-                peer.services[service] = {"{}:{}".format(peer.host_address, port) for port in message.ports}
-
-            events.send(discovery.ApiMsg.serialize(discovery.Whisper(uuid, name, payload)))
-
-        inbox_handlers = {
-            b'ENTER': inbox_handle_enter,
-            b'EXIT': inbox_handle_exit,
-            b'JOIN': inbox_handle_join,
-            b'LEAVE': inbox_handle_leave,
-            b'SHOUT': inbox_handle_shout,
-            b'WHISPER': inbox_handle_whisper,
-            b'STOP': lambda uuid, name: None,
+        backend_handlers = {
+            "ENTER": self.recv_backend_enter,
+            "EXIT": self.recv_backend_exit,
+            "JOIN": self.recv_backend_join,
+            "LEAVE": self.recv_backend_leave,
+            "SHOUT": self.recv_backend_shout,
+            "WHISPER": self.recv_backend_whisper,
+            "STOP": lambda uuid, name: None,
+            "$TERM": self.recv_backend_term,
         }
 
-        def events_handle_exit():
-            for socket in list(poller.sockets):
-                socket.close()
-                poller.unregister(socket)
+        def recv_backend():
+            event = self.backend.recv_multipart()
+            backend_handlers[event[0].decode('UTF-8')](*event[1:])
+            self.outbox.send_multipart(event)
 
-        def events_handle_api(msg):
-            msg = discovery.ApiMsg.parse(msg)
+        self.poller = zmq_utils.Poller()
+        # pipe for API commands from client
+        self.poller.register(self.pipe, zmq.POLLIN, self.recv_api)
+        # pipe for API commands to PyreNode
+        self.poller.register(self.actor.resolve(), zmq.POLLIN, lambda: self.pipe.send_multipart(self.actor.recv_multipart()))
+        # pipe for events from Pyre
+        self.poller.register(self.backend, zmq.POLLIN, recv_backend)
+
+        self.pipe.signal()
+
+        while len(self.poller.sockets) > 0:
+            for _, _, recv in self.poller.poll():
+                recv()
+        logger.debug("Node terminating")
+
+    def recv_api(self):
+        request = self.pipe.recv_multipart()
+        command = request[0].decode('UTF-8')
+        if command == "API":
+            msg = discovery.ApiMsg.parse(request[1])
 
             if isinstance(msg, discovery.RegisterService):
                 ports = self.services[msg.service]
                 ports |= msg.added_ports
                 ports -= msg.removed_ports
-                self.shout(msg.service, discovery.Msg.serialize(discovery.Update(ports=ports)))
+
+                self.actor.send_unicode("SHOUT", flags=zmq.SNDMORE)
+                self.actor.send_unicode(msg.service, flags=zmq.SNDMORE)
+                self.actor.send(discovery.Msg.serialize(discovery.Update(ports=ports)))
 
             if isinstance(msg, discovery.Service):
                 endpoints = [endpoint
                              for peer in self.peers.values()
                              for endpoint in peer.services[msg.service]]
-                events.send(discovery.ApiMsg.serialize(discovery.Service(msg.service, endpoints)))
+                self.pipe.send(discovery.ApiMsg.serialize(discovery.Service(msg.service, endpoints)))
+        else:
+            self.actor.send_multipart(request)
 
-        def events_handle_out(group, msg):
-            self.shout(group.decode('utf-8'), msg)
+    def recv_backend_enter(self, uuid, name, headers, address):
+        name = name.decode('utf-8')
+        address = address.decode('utf-8')
 
-        events_handlers = {
-            b'EXIT': events_handle_exit,
-            b'API': events_handle_api,
-            b'OUT': events_handle_out,
-        }
+        self.add_peer(name, uuid, address)
 
-        poller = zmq_utils.Poller()
-        poller.register(self.inbox, zmq.POLLIN, inbox_handlers)
-        poller.register(events, zmq.POLLIN, events_handlers)
+    def recv_backend_exit(self, uuid, name):
+        name = name.decode('utf-8')
 
-        def poll():
-            while len(poller.sockets) > 0:
-                for sock, _, handlers in poller.poll():
-                    cmd, *payload = sock.recv_multipart()
-                    handlers[cmd](*payload)
+        del self.peers[uuid]
 
-        threading.Thread(target=poll).start()
+    def recv_backend_join(self, uuid, name, group):
+        name = name.decode('utf-8')
+        group = group.decode('utf-8')
+
+        peer = self.peers[uuid]
+        peer.services[group] = set()
+
+    def recv_backend_leave(self, uuid, name, group):
+        name = name.decode('utf-8')
+        group = group.decode('utf-8')
+
+        peer = self.peers[uuid]
+        del peer.services[group]
+
+    def recv_backend_shout(self, uuid, name, group, payload):
+        name = name.decode('utf-8')
+        group = group.decode('utf-8')
+
+        peer = self.peers[uuid]
+        message = discovery.Msg.parse(payload)
+        service = message.service or group
+
+        if isinstance(message, discovery.Request):
+            peer.update_service(service)
+        elif isinstance(message, discovery.Update):
+            peer.services[service] = {"{}:{}".format(peer.host_address, port) for port in message.ports}
+
+    def recv_backend_whisper(self, uuid, name, payload):
+        name = name.decode('utf-8')
+
+        peer = self.peers[uuid]
+        message = discovery.Msg.parse(payload)
+        service = message.service
+
+        if isinstance(message, discovery.Request):
+            peer.update_service(service)
+        elif isinstance(message, discovery.Update):
+            peer.services[service] = {"{}:{}".format(peer.host_address, port) for port in message.ports}
+
+    def recv_backend_term(self):
+        for socket in list(self.poller.sockets):
+            self.poller.unregister(socket)
+
+    def add_peer(self, name, uuid, address):
+        peer = NodeActor.Peer(self, name, uuid, address)
+        self.peers[uuid] = peer
+        return peer
+
+
+class Node(Pyre):
+    def __init__(self, name=None, ctx=None, *args, **kwargs):
+        super().__init__(name, ctx, *args, **kwargs)
+        backend = self.inbox
+        self.inbox, self._outbox = zhelper.zcreate_pipe(self._ctx)
+
+        self.queue = []
+        self.actor = ZActor(ctx, NodeActor, self.queue, self.actor, self._outbox, backend)
 
     def add_service(self, service, endpoint):
         port = endpoint_to_port(endpoint)
-        self.events.send_multipart(
+        self.actor.send_multipart(
             [b'API', discovery.ApiMsg.serialize(discovery.RegisterService(service, added_ports={port}))])
 
     def remove_service(self, service, endpoint):
         port = endpoint_to_port(endpoint)
-        self.events.send_multipart(
+        self.actor.send_multipart(
             [b'API', discovery.ApiMsg.serialize(discovery.RegisterService(service, removed_ports={port}))])
 
     def get_endpoints(self, service):
-        self.events.send_multipart(
+        self.actor.send_multipart(
             [b'API', discovery.ApiMsg.serialize(discovery.Service(service))])
 
     def request_service(self, service):
-        self.events.send_multipart(
-            [b'OUT', service.encode('utf-8'), discovery.Msg.serialize(discovery.Request())])
-
-    def add_peer(self, name, uuid, address):
-        peer = Node.Peer(self, name, uuid, address)
-        self.peers[uuid] = peer
-        return peer
-
-    def stop(self):
-        super().stop()
-        self.events.send(b'EXIT')
+        self.shout(service, discovery.Msg.serialize(discovery.Request()))
 
     def __enter__(self):
         self.start()
