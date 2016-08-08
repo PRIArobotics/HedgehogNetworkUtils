@@ -69,8 +69,10 @@ class NodeActor(object):
 
         def recv_backend():
             event = self.backend.recv_multipart()
-            backend_handlers[event[0].decode('UTF-8')](*event[1:])
-            self.outbox.send_multipart(event)
+            command = event[0].decode('UTF-8')
+            backend_handlers[command](*event[1:])
+            if command != "$TERM":
+                self.outbox.send_multipart(event)
 
         self.poller = zmq_utils.Poller()
         # pipe for API commands from client
@@ -109,6 +111,9 @@ class NodeActor(object):
                          for endpoint in peer.services[service]}
             self.pipe.send_pyobj(endpoints)
         else:
+            if command == "$TERM":
+                for socket in list(self.poller.sockets):
+                    self.poller.unregister(socket)
             self.actor.send_multipart(request)
 
     def recv_backend_enter(self, uuid, name, headers, address):
@@ -162,8 +167,7 @@ class NodeActor(object):
             peer.services[service] = {"{}:{}".format(peer.host_address, port) for port in message.ports}
 
     def recv_backend_term(self):
-        for socket in list(self.poller.sockets):
-            self.poller.unregister(socket)
+        self.outbox.send_unicode("$TERM")
 
     def add_peer(self, name, uuid, address):
         peer = NodeActor.Peer(self, name, uuid, address)
