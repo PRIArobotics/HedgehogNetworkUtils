@@ -35,6 +35,14 @@ class NodeActor(object):
             self.host_address = address.rsplit(':', 1)[0]
             self.services = defaultdict(set)
 
+        def copy(self, service=None):
+            result = NodeActor.Peer(None, self.name, self.uuid, self.address)
+            if service is None:
+                result.services = dict(self.services)
+            else:
+                result.services = {service: self.services[service]}
+            return result
+
         def request_service(self, service):
             self.node.actor.send_unicode("WHISPER", flags=zmq.SNDMORE)
             self.node.actor.send(self.uuid, flags=zmq.SNDMORE)
@@ -71,7 +79,7 @@ class NodeActor(object):
             event = self.backend.recv_multipart()
             command = event[0].decode('UTF-8')
             backend_handlers[command](*event[1:])
-            if command != "$TERM":
+            if command not in {"STOP", "$TERM"}:
                 self.outbox.send_multipart(event)
 
         self.poller = zmq_utils.Poller()
@@ -104,11 +112,10 @@ class NodeActor(object):
             self.actor.send_unicode("SHOUT", flags=zmq.SNDMORE)
             self.actor.send_unicode(service, flags=zmq.SNDMORE)
             self.actor.send(discovery.Msg.serialize(discovery.Update(ports=ports)))
-        elif command == "SERVICE":
+        elif command == "PEERS":
             service = request[1].decode('UTF-8')
-            endpoints = {endpoint
-                         for peer in self.peers.values()
-                         for endpoint in peer.services[service]}
+            endpoints = {peer.copy(service=service)
+                         for peer in self.peers.values() if len(peer.services[service]) > 0}
             self.pipe.send_pyobj(endpoints)
         else:
             if command == "$TERM":
@@ -198,8 +205,8 @@ class Node(Pyre):
         self.actor.send_pyobj(set(), zmq.SNDMORE)
         self.actor.send_pyobj({port})
 
-    def get_endpoints(self, service):
-        self.actor.send_unicode("SERVICE", zmq.SNDMORE)
+    def get_peers(self, service):
+        self.actor.send_unicode("PEERS", zmq.SNDMORE)
         self.actor.send_unicode(service)
         return self.actor.recv_pyobj()
 
