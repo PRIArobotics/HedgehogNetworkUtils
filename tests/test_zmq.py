@@ -1,7 +1,7 @@
 import unittest
 import zmq
 from hedgehog.utils.zmq.pipe import pipe, extended_pipe
-from hedgehog.utils.zmq.actor import Actor
+from hedgehog.utils.zmq.actor import Actor, CommandRegistry
 
 
 class PipeTests(unittest.TestCase):
@@ -69,3 +69,22 @@ class ActorTests(unittest.TestCase):
         actor.evt_pipe.recv_expect(b'event')
         actor.evt_pipe.send(b'reply')
         actor.evt_pipe.recv_expect(b'$TERM')
+
+    def test_command_registry(self):
+        registry = CommandRegistry()
+
+        def handler(payload):
+            assert payload == b'payload'
+
+        registry.register(b'test', handler)
+
+        registry.handle((b'test', b'payload'))
+
+    def test_command_registry_decorator(self):
+        registry = CommandRegistry()
+
+        @registry.command(b'test')
+        def handler(payload):
+            assert payload == b'payload'
+
+        registry.handle((b'test', b'payload'))

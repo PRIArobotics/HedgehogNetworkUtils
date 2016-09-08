@@ -74,3 +74,30 @@ class Actor(object):
                 pass
             self.evt_pipe.close()
 
+
+class CommandRegistry(object):
+    def __init__(self):
+        self.cmds = {}
+
+    def register(self, command, callback):
+        self.cmds[command] = callback
+
+    def command(self, command):
+        """
+        reg.command(a)(b) is the same as reg.register(a, b).
+        This function is meant to be used as a decorator:
+
+        @reg.command(a)
+        def b():
+            pass
+        """
+        return lambda callback: self.register(command, callback)
+
+    def handle(self, msg):
+        """
+        Splits the message into command and payload and dispatches it to a handler.
+        The first part of the received multipart message is the command, which is mapped to a handler. The rest of the
+        message is passed to the handler, each part being an individual argument.
+        """
+        command, *payload = msg
+        self.cmds[command](*payload)
