@@ -36,6 +36,7 @@ class Actor(object):
         self._args = (ctx, self._cmd_pipe, self._evt_pipe) + args
         self._kwargs = kwargs
 
+        self._terminated = False
         self.thread = threading.Thread(target=self.run)
         # we manage threads exiting ourselves!
         self.thread.daemon = False
@@ -50,22 +51,37 @@ class Actor(object):
         self._actor(*self._args, **self._kwargs)
         self._cmd_pipe.close()
 
+        self._terminated = True
         self._evt_pipe.configure(sndtimeo=0)
         self._evt_pipe.send(b'$TERM')
         self._evt_pipe.close()
 
     def destroy(self, block=True):
         """
-        Ask the actor thread to terminate. If `block=False` is given, the caller thread can receive further events,
-        including the termination event when the actor was really destroyed. When using that option, the event pipe
-        should be manually closed after receiving the termination event. In any case, no more commands can be sent after
-        calling `destroy()`.
+        Ask the actor thread to terminate, either blocking until the thread is dead, or returning immediately.
+        Calling `destroy(block=False)` allows the caller thread to receive further events, including the termination
+        event when the actor eventually dies. The command pipe is closed. Further nonblocking calls before the actor
+        dies do nothing.
+        Calling `destroy()`, i.e. blocking, will additionally wait for the actor to terminate and then close the event
+        pipe.
+        Calling either flavor of `destroy` after the actor has died will simply close both pipes. Calling `destroy`
+        multiple times is possible, e.g. `destroy(block=False)` first, then `destroy()` (either to wait for termination,
+        or simply to close the event socket after termination).
 
         :param block: Whether to block until the actor has terminated, defaults to `True`
         """
-        self.cmd_pipe.configure(sndtimeo=0)
-        self.cmd_pipe.send_unicode('$TERM')
-        self.cmd_pipe.close()
+
+        if self._terminated:
+            # if the actor terminated on its own, we don't need to send any messages, but still clean up
+            # if this was a redundant destroy() call, it doesn't hurt.
+            self.cmd_pipe.close()
+            self.evt_pipe.close()
+            return
+
+        if not self.cmd_pipe.closed:
+            self.cmd_pipe.configure(sndtimeo=0)
+            self.cmd_pipe.send_unicode('$TERM')
+            self.cmd_pipe.close()
 
         # the option to not block is useful to receive events that happened after the destroy command
         if block:
