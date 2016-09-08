@@ -31,4 +31,3 @@ class Update(Message):
     def _serialize(self, msg):
         msg.service = self.service
         msg.ports.extend(self.ports)
-

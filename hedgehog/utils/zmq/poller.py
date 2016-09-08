@@ -1,14 +1,13 @@
 import zmq
-from pyre import zhelper
 
 
-def pipe(ctx=None, hwm=1000):
-    if ctx is None:
-        ctx = zmq.Context.instance()
-    return zhelper.zcreate_pipe(ctx, hwm)
-
-
-class Poller:
+class Poller(object):
+    """
+    This class wraps the ZMQ `Poller` class to assign an additional data object to each socket.
+    Compared to `zmq.Poller`, this class' `register` and `modify` methods take an additional `data` parameter, and the
+    `poll` method returns a list consisting of tuples with an additional `data` entry. The data is optional and may be
+    arbitrary, but one common use would be a callback that is thus easily associated with each socket.
+    """
     def __init__(self):
         self._poller = zmq.Poller()
         self.data = {}
@@ -25,7 +24,7 @@ class Poller:
         self.data[socket] = data
 
     def modify(self, socket, flags=zmq.POLLIN|zmq.POLLOUT, data=None):
-        self.register(socket, data, flags)
+        self.register(socket, flags, data)
 
     def unregister(self, socket):
         self._poller.unregister(socket)

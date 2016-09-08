@@ -1,20 +1,10 @@
 import unittest
 import zmq
-import pickle
-from hedgehog.utils import zmq as zmq_utils
 from hedgehog.utils import discovery
 from hedgehog.utils.discovery.node import Node, endpoint_to_port
 
 
-class ZmqTests(unittest.TestCase):
-    def test_pipe(self):
-        p1a, p1b = zmq_utils.pipe()
-
-        msg = b'a'
-        p1a.send(msg)
-        p1b.send(p1b.recv())
-        self.assertEqual(p1a.recv(), msg)
-
+class DiscoveryTests(unittest.TestCase):
     def test_service_request_message(self):
         old = discovery.Request('test')
         new = discovery.Msg.parse(discovery.Msg.serialize(old))
