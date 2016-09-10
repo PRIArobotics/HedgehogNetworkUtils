@@ -76,3 +76,78 @@ class DiscoveryTests(unittest.TestCase):
             self.assertIsInstance(msg, discovery.Service)
             self.assertEqual(msg.service, 'hedgehog_server')
             self.assertEqual(msg.endpoints, {endpoint})
+
+    def test_pyre(self):
+        from uuid import UUID
+        from pyre.pyre import Pyre
+        from hedgehog.utils.zmq.poller import Poller
+
+        ctx = zmq.Context()
+        poller = Poller()
+
+        def handle_pipe(node):
+            msg = node.actor.pipe.recv_multipart()
+            print(node.name(), "pipe: ", msg)
+
+        def handle_inbox(node):
+            msg = node.inbox.recv_multipart()
+            print(node.name(), "inbox:", msg)
+
+            cmd, id, name, *args = msg
+            if cmd == b'JOIN':
+                node.whisper(UUID(bytes=id), [b'a', b'b'])
+                node.shout('test', [b'a', b'b'])
+
+        def mknode(i):
+            node = Pyre("Node {}".format(i), ctx)
+            node.join('test')
+            poller.register(node.actor.pipe, zmq.POLLIN, lambda n=node: handle_pipe(n))
+            poller.register(node.inbox, zmq.POLLIN, lambda n=node: handle_inbox(n))
+            node.start()
+            return node
+
+        nodes = [mknode(i) for i in range(2)]
+
+        count = 0
+        while count < 8:
+            for _, _, handler in poller.poll():
+                handler()
+                count += 1
+
+        for node in nodes:
+            node.stop()
+
+    def test_node(self):
+        from uuid import UUID
+        from hedgehog.utils.discovery.node import Node
+        from hedgehog.utils.zmq.poller import Poller
+
+        ctx = zmq.Context()
+        poller = Poller()
+
+        def handle_evt(node):
+            msg = node.actor.evt_pipe.recv_multipart()
+            print(node._name, msg)
+
+            cmd, id, name, *args = msg
+            if cmd == b'JOIN':
+                node.whisper(UUID(bytes=id), [b'a', b'b'])
+                node.shout('test', [b'a', b'b'])
+
+        def mknode(i):
+            node = Node(ctx, "Node {}".format(i))
+            node.start()
+            node.join('test')
+            poller.register(node.actor.evt_pipe, zmq.POLLIN, lambda n=node: handle_evt(n))
+            return node
+
+        nodes = [mknode(i) for i in range(2)]
+
+        count = 0
+        while count < 8:
+            for _, _, handler in poller.poll():
+                handler()
+                count += 1
+
+        for node in nodes:
+            node.stop()
