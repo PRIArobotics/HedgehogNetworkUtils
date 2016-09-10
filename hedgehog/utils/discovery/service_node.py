@@ -25,7 +25,7 @@ def endpoint_to_port(endpoint):
         raise ValueError(endpoint)
 
 
-class NodeActor(object):
+class ServiceNodeActor(object):
     class Peer:
         def __init__(self, node, name, uuid, address):
             self.node = node
@@ -36,7 +36,7 @@ class NodeActor(object):
             self.services = defaultdict(set)
 
         def copy(self, service=None):
-            result = NodeActor.Peer(None, self.name, self.uuid, self.address)
+            result = ServiceNodeActor.Peer(None, self.name, self.uuid, self.address)
             if service is None:
                 result.services = dict(self.services)
             else:
@@ -177,19 +177,19 @@ class NodeActor(object):
         self.outbox.send_unicode("$TERM")
 
     def add_peer(self, name, uuid, address):
-        peer = NodeActor.Peer(self, name, uuid, address)
+        peer = ServiceNodeActor.Peer(self, name, uuid, address)
         self.peers[uuid] = peer
         return peer
 
 
-class Node(Pyre):
+class ServiceNode(Pyre):
     def __init__(self, name=None, ctx=None, *args, **kwargs):
         super().__init__(name, ctx, *args, **kwargs)
         backend = self.inbox
         self.inbox, self._outbox = zhelper.zcreate_pipe(self._ctx)
 
         self.queue = []
-        self.actor = ZActor(ctx, NodeActor, self.queue, self.actor, self._outbox, backend)
+        self.actor = ZActor(ctx, ServiceNodeActor, self.queue, self.actor, self._outbox, backend)
 
     def add_service(self, service, endpoint):
         port = endpoint_to_port(endpoint)

@@ -1,7 +1,7 @@
 import unittest
 import zmq
 from hedgehog.utils import discovery
-from hedgehog.utils.discovery.node import Node, endpoint_to_port
+from hedgehog.utils.discovery.service_node import ServiceNode, endpoint_to_port
 
 
 class DiscoveryTests(unittest.TestCase):
@@ -21,8 +21,8 @@ class DiscoveryTests(unittest.TestCase):
 
     def test_discovery(self):
         ctx = zmq.Context.instance()
-        with Node("Node 1", ctx) as node1, \
-                Node("Node 2", ctx) as node2:
+        with ServiceNode("Node 1", ctx) as node1, \
+                ServiceNode("Node 2", ctx) as node2:
 
             msg = discovery.ApiMsg.parse(node1.events.recv())
             self.assertIsInstance(msg, discovery.Enter)
