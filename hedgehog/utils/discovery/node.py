@@ -108,22 +108,24 @@ class NodeActor(object):
                                             socket.htons(0)))
             # Give time for beacon to go out
             time.sleep(0.001)
+            self.poller.unregister(self.beacon.evt_pipe)
             self.beacon.stop()
+            self.beacon = None
 
         # self.beacon_port = 0
 
     def stop_inbox(self):
         # Stop polling on inbox
-        self.poller.unregister(self.inbox)
+        if self.inbox in self.poller.sockets:
+            self.poller.unregister(self.inbox)
 
         # self.outbox.send_unicode("STOP", zmq.SNDMORE)
         # self.outbox.send(self.identity.bytes, zmq.SNDMORE)
         # self.outbox.send_unicode(self.name)
 
     def terminate(self):
-        if self.beacon is not None:
-            self.beacon.stop()
-            self.beacon = None
+        self.stop_beacon()
+        self.stop_inbox()
         for socket in list(self.poller.sockets):
             self.poller.unregister(socket)
 
