@@ -78,76 +78,100 @@ class DiscoveryTests(unittest.TestCase):
             self.assertEqual(msg.endpoints, {endpoint})
 
     def test_pyre(self):
-        from uuid import UUID
         from pyre.pyre import Pyre
-        from hedgehog.utils.zmq.poller import Poller
 
         ctx = zmq.Context()
-        poller = Poller()
 
-        def handle_pipe(node):
-            msg = node.actor.pipe.recv_multipart()
-            print(node.name(), "pipe: ", msg)
+        node1, node2 = nodes = [Pyre("Node {}".format(i), ctx) for i in range(2)]
 
-        def handle_inbox(node):
-            msg = node.inbox.recv_multipart()
-            print(node.name(), "inbox:", msg)
-
-            cmd, id, name, *args = msg
-            if cmd == b'JOIN':
-                node.whisper(UUID(bytes=id), [b'a', b'b'])
-                node.shout('test', [b'a', b'b'])
-
-        def mknode(i):
-            node = Pyre("Node {}".format(i), ctx)
-            node.join('test')
-            poller.register(node.actor.pipe, zmq.POLLIN, lambda n=node: handle_pipe(n))
-            poller.register(node.inbox, zmq.POLLIN, lambda n=node: handle_inbox(n))
-            node.start()
-            return node
-
-        nodes = [mknode(i) for i in range(2)]
-
-        count = 0
-        while count < 8:
-            for _, _, handler in poller.poll():
-                handler()
-                count += 1
+        def other(node):
+            return node1 if node is node2 else node2
 
         for node in nodes:
-            node.stop()
+            node.start()
+
+        try:
+            for node in nodes:
+                command, uuid, name, headers, endpoint = node.recv()
+                self.assertEqual(command.decode(), "ENTER")
+                self.assertEqual(uuid, other(node).uuid().bytes)
+                self.assertEqual(name.decode(), other(node)._name)
+
+            for node in nodes:
+                node.join('test')
+
+            for node in nodes:
+                command, uuid, name, group = node.recv()
+                self.assertEqual(command.decode(), "JOIN")
+                self.assertEqual(uuid, other(node).uuid().bytes)
+                self.assertEqual(name.decode(), other(node).name())
+                self.assertEqual(group.decode(), 'test')
+
+            node1.whisper(node2.uuid(), [b'a', b'b'])
+            command, uuid, name, *msg = node2.recv()
+
+            self.assertEqual(command.decode(), "WHISPER")
+            self.assertEqual(uuid, node1.uuid().bytes)
+            self.assertEqual(name.decode(), node1.name())
+            self.assertEqual(msg, [b'a'])
+            # self.assertEqual(msg, [b'a', b'b'])  # TODO
+
+            node1.shout('test', [b'a', b'b'])
+            command, uuid, name, group, *msg = node2.recv()
+
+            self.assertEqual(command.decode(), "SHOUT")
+            self.assertEqual(uuid, node1.uuid().bytes)
+            self.assertEqual(name.decode(), node1.name())
+            self.assertEqual(group.decode(), 'test')
+            self.assertEqual(msg, [b'a'])
+            # self.assertEqual(msg, [b'a', b'b'])  # TODO
+        finally:
+            for node in nodes:
+                node.stop()
 
     def test_node(self):
         from uuid import UUID
         from hedgehog.utils.discovery.node import Node
-        from hedgehog.utils.zmq.poller import Poller
 
         ctx = zmq.Context()
-        poller = Poller()
 
-        def handle_evt(node):
-            msg = node.actor.evt_pipe.recv_multipart()
-            print(node._name, msg)
+        node1, node2 = nodes = [Node(ctx, "Node {}".format(i)) for i in range(2)]
 
-            cmd, id, name, *args = msg
-            if cmd == b'JOIN':
-                node.whisper(UUID(bytes=id), [b'a', b'b'])
-                node.shout('test', [b'a', b'b'])
+        def other(node):
+            return node1 if node is node2 else node2
 
-        def mknode(i):
-            node = Node(ctx, "Node {}".format(i))
-            node.start()
-            node.join('test')
-            poller.register(node.actor.evt_pipe, zmq.POLLIN, lambda n=node: handle_evt(n))
-            return node
+        with node1, node2:
+            for node in nodes:
+                command, uuid, name, headers, endpoint = node.evt_pipe.recv_multipart()
+                self.assertEqual(command, b'ENTER')
+                self.assertEqual(name.decode(), other(node)._name)
+                other(node)._uuid = uuid  # TODO
 
-        nodes = [mknode(i) for i in range(2)]
+            for node in nodes:
+                node.join('test')
 
-        count = 0
-        while count < 8:
-            for _, _, handler in poller.poll():
-                handler()
-                count += 1
+            for node in nodes:
+                command, uuid, name, group = node.evt_pipe.recv_multipart()
+                self.assertEqual(command, b'JOIN')
+                self.assertEqual(uuid, other(node)._uuid)
+                self.assertEqual(name.decode(), other(node)._name)
+                self.assertEqual(group.decode(), 'test')
 
-        for node in nodes:
-            node.stop()
+            node1.whisper(UUID(bytes=node2._uuid), [b'a', b'b'])
+            command, uuid, name, *msg = node2.evt_pipe.recv_multipart()
+
+            self.assertEqual(command, b'WHISPER')
+            self.assertEqual(uuid, node1._uuid)
+            self.assertEqual(name.decode(), node1._name)
+            self.assertEqual(msg, [b'a'])
+            # self.assertEqual(msg, [b'a', b'b'])  # TODO
+
+            node1.shout('test', [b'a', b'b'])
+            command, uuid, name, group, *msg = node2.evt_pipe.recv_multipart()
+
+            self.assertEqual(command, b'SHOUT')
+            self.assertEqual(uuid, node1._uuid)
+            self.assertEqual(name.decode(), node1._name)
+            self.assertEqual(group.decode(), 'test')
+            self.assertEqual(msg, [b'a'])
+            # self.assertEqual(msg, [b'a', b'b'])  # TODO
