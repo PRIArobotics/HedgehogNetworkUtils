@@ -34,8 +34,8 @@ class DiscoveryTests(unittest.TestCase):
             for node in nodes:
                 command, uuid, name, headers, endpoint = node.evt_pipe.recv_multipart()
                 self.assertEqual(command, b'ENTER')
-                self.assertEqual(name.decode(), other(node)._name)
-                other(node)._uuid = uuid  # TODO
+                self.assertEqual(uuid, other(node).uuid.bytes)
+                self.assertEqual(name.decode(), other(node).name)
                 other(node)._endpoint = endpoint.decode()  # TODO
 
             # check JOIN
@@ -46,8 +46,8 @@ class DiscoveryTests(unittest.TestCase):
             for node in nodes:
                 command, uuid, name, group = node.evt_pipe.recv_multipart()
                 self.assertEqual(command, b'JOIN')
-                self.assertEqual(uuid, other(node)._uuid)
-                self.assertEqual(name.decode(), other(node)._name)
+                self.assertEqual(uuid, other(node).uuid.bytes)
+                self.assertEqual(name.decode(), other(node).name)
                 self.assertEqual(group.decode(), SERVICE)
 
             # check add_service
@@ -58,15 +58,15 @@ class DiscoveryTests(unittest.TestCase):
             command, = node2.evt_pipe.recv_multipart()
             self.assertEqual(command, b'UPDATE')
             peer = node2.evt_pipe.pop()
-            self.assertEqual(peer.name, node1._name)
-            self.assertEqual(peer.uuid, node1._uuid)
+            self.assertEqual(peer.name, node1.name)
+            self.assertEqual(peer.uuid, node1.uuid.bytes)
             self.assertEqual(peer.services, {SERVICE: {endpoint}})
 
             # check get_peers
 
             self.assertEqual(
                 {peer.name: (peer.uuid, peer.services) for peer in node2.get_peers()},
-                {peer._name: (peer._uuid, services) for peer, services in [(node1, {SERVICE: {endpoint}})]})
+                {peer.name: (peer.uuid.bytes, services) for peer, services in [(node1, {SERVICE: {endpoint}})]})
 
             # check request_service
 
@@ -75,8 +75,8 @@ class DiscoveryTests(unittest.TestCase):
             command, = node2.evt_pipe.recv_multipart()
             self.assertEqual(command, b'UPDATE')
             peer = node2.evt_pipe.pop()
-            self.assertEqual(peer.name, node1._name)
-            self.assertEqual(peer.uuid, node1._uuid)
+            self.assertEqual(peer.name, node1.name)
+            self.assertEqual(peer.uuid, node1.uuid.bytes)
             self.assertEqual(peer.services, {SERVICE: {endpoint}})
 
             # check remove_service
@@ -86,15 +86,15 @@ class DiscoveryTests(unittest.TestCase):
             command, = node2.evt_pipe.recv_multipart()
             self.assertEqual(command, b'UPDATE')
             peer = node2.evt_pipe.pop()
-            self.assertEqual(peer.name, node1._name)
-            self.assertEqual(peer.uuid, node1._uuid)
+            self.assertEqual(peer.name, node1.name)
+            self.assertEqual(peer.uuid, node1.uuid.bytes)
             self.assertEqual(peer.services, {})
 
             # check get_peers
 
             self.assertEqual(
                 {peer.name: (peer.uuid, peer.services) for peer in node2.get_peers()},
-                {peer._name: (peer._uuid, services) for peer, services in [(node1, {})]})
+                {peer.name: (peer.uuid.bytes, services) for peer, services in [(node1, {})]})
 
     def test_pyre(self):
         from pyre.pyre import Pyre
@@ -163,8 +163,8 @@ class DiscoveryTests(unittest.TestCase):
             for node in nodes:
                 command, uuid, name, headers, endpoint = node.evt_pipe.recv_multipart()
                 self.assertEqual(command, b'ENTER')
-                self.assertEqual(name.decode(), other(node)._name)
-                other(node)._uuid = uuid  # TODO
+                self.assertEqual(uuid, other(node).uuid.bytes)
+                self.assertEqual(name.decode(), other(node).name)
 
             for node in nodes:
                 node.join('test')
@@ -172,16 +172,16 @@ class DiscoveryTests(unittest.TestCase):
             for node in nodes:
                 command, uuid, name, group = node.evt_pipe.recv_multipart()
                 self.assertEqual(command, b'JOIN')
-                self.assertEqual(uuid, other(node)._uuid)
-                self.assertEqual(name.decode(), other(node)._name)
+                self.assertEqual(uuid, other(node).uuid.bytes)
+                self.assertEqual(name.decode(), other(node).name)
                 self.assertEqual(group.decode(), 'test')
 
-            node1.whisper(UUID(bytes=node2._uuid), [b'a', b'b'])
+            node1.whisper(node2.uuid, [b'a', b'b'])
             command, uuid, name, *msg = node2.evt_pipe.recv_multipart()
 
             self.assertEqual(command, b'WHISPER')
-            self.assertEqual(uuid, node1._uuid)
-            self.assertEqual(name.decode(), node1._name)
+            self.assertEqual(uuid, node1.uuid.bytes)
+            self.assertEqual(name.decode(), node1.name)
             self.assertEqual(msg, [b'a'])
             # self.assertEqual(msg, [b'a', b'b'])  # TODO
 
@@ -189,8 +189,8 @@ class DiscoveryTests(unittest.TestCase):
             command, uuid, name, group, *msg = node2.evt_pipe.recv_multipart()
 
             self.assertEqual(command, b'SHOUT')
-            self.assertEqual(uuid, node1._uuid)
-            self.assertEqual(name.decode(), node1._name)
+            self.assertEqual(uuid, node1.uuid.bytes)
+            self.assertEqual(name.decode(), node1.name)
             self.assertEqual(group.decode(), 'test')
             self.assertEqual(msg, [b'a'])
             # self.assertEqual(msg, [b'a', b'b'])  # TODO

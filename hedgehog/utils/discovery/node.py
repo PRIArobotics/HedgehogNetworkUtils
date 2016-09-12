@@ -562,12 +562,33 @@ class Node(Active):
     def __init__(self, ctx, name=None):
         self.ctx = ctx
         self.actor = None
-        self._name = name
+        self._uuid = None
+        self._name = self._given_name = name
+
+    @property
+    def uuid(self):
+        if not self._uuid and self.actor:
+            self.cmd_pipe.send(b'UUID')
+            self._uuid = uuid.UUID(bytes=self.cmd_pipe.recv())
+        return self._uuid
+
+    @property
+    def name(self):
+        if not self._name and self.actor:
+            self.cmd_pipe.send(b'NAME')
+            self._name = self.cmd_pipe.recv_unicode()
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        self._name = self._given_name = value
+        if self.actor:
+            self.cmd_pipe.send_multipart((b'SET NAME', value.encode()))
 
     def start(self):
         self.actor = Actor(self.ctx, self.node_class, beacon_class=self.beacon_class)
-        if self._name:
-            self.cmd_pipe.send_multipart((b'SET NAME', self._name.encode()))
+        if self._given_name:
+            self.cmd_pipe.send_multipart((b'SET NAME', self._given_name.encode()))
         self.cmd_pipe.send(b'START')
         # the backend will signal back
         self.cmd_pipe.wait()
@@ -611,3 +632,6 @@ class Node(Active):
             self.cmd_pipe.wait()
             self.actor.destroy()
             self.actor = None
+
+            self._uuid = None
+            self._name = self._given_name
