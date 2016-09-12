@@ -116,4 +116,4 @@ class CommandRegistry(object):
         message is passed to the handler, each part being an individual argument.
         """
         command, *payload = msg
-        self.cmds[command](*payload)
+        return self.cmds[command](*payload)

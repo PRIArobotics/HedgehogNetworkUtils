@@ -19,63 +19,82 @@ class DiscoveryTests(unittest.TestCase):
         port = endpoint_to_port(b'tcp://127.0.0.1:5555')
         self.assertEqual(port, 5555)
 
-    def test_discovery(self):
+    def test_service_node(self):
         ctx = zmq.Context.instance()
-        with ServiceNode("Node 1", ctx) as node1, \
-                ServiceNode("Node 2", ctx) as node2:
 
-            msg = discovery.ApiMsg.parse(node1.events.recv())
-            self.assertIsInstance(msg, discovery.Enter)
-            self.assertEqual(msg.name, 'Node 2')
+        SERVICE = 'hedgehog_server'
+        node1, node2 = nodes = [ServiceNode(ctx, "Node {}".format(i)) for i in range(2)]
 
-            endpoint = msg.address.rsplit(':', 1)[0] + ':5555'
+        def other(node):
+            return node1 if node is node2 else node2
 
-            msg = discovery.ApiMsg.parse(node2.events.recv())
-            self.assertIsInstance(msg, discovery.Enter)
-            self.assertEqual(msg.name, 'Node 1')
+        with node1, node2:
+            # check ENTER
 
-            node2.join('hedgehog_server')
-            node1.join('hedgehog_server')
+            for node in nodes:
+                command, uuid, name, headers, endpoint = node.evt_pipe.recv_multipart()
+                self.assertEqual(command, b'ENTER')
+                self.assertEqual(name.decode(), other(node)._name)
+                other(node)._uuid = uuid  # TODO
+                other(node)._endpoint = endpoint.decode()  # TODO
 
-            msg = discovery.ApiMsg.parse(node1.events.recv())
-            self.assertIsInstance(msg, discovery.Join)
-            self.assertEqual(msg.name, 'Node 2')
-            self.assertEqual(msg.group, 'hedgehog_server')
+            # check JOIN
 
-            msg = discovery.ApiMsg.parse(node2.events.recv())
-            self.assertIsInstance(msg, discovery.Join)
-            self.assertEqual(msg.name, 'Node 1')
-            self.assertEqual(msg.group, 'hedgehog_server')
+            for node in nodes:
+                node.join(SERVICE)
 
-            node2.add_service('hedgehog_server', 5555)
+            for node in nodes:
+                command, uuid, name, group = node.evt_pipe.recv_multipart()
+                self.assertEqual(command, b'JOIN')
+                self.assertEqual(uuid, other(node)._uuid)
+                self.assertEqual(name.decode(), other(node)._name)
+                self.assertEqual(group.decode(), SERVICE)
 
-            msg = discovery.ApiMsg.parse(node1.events.recv())
-            self.assertIsInstance(msg, discovery.Shout)
-            self.assertEqual(msg.name, 'Node 2')
-            self.assertEqual(msg.group, 'hedgehog_server')
-            self.assertEqual(msg.payload, discovery.Msg.serialize(discovery.Update(ports=[5555])))
+            # check add_service
 
-            node1.request_service('hedgehog_server')
+            endpoint = node1._endpoint.rsplit(':', 1)[0] + ':5555'
+            node1.add_service(SERVICE, 5555)
 
-            msg = discovery.ApiMsg.parse(node2.events.recv())
-            self.assertIsInstance(msg, discovery.Shout)
-            self.assertEqual(msg.name, 'Node 1')
-            self.assertEqual(msg.group, 'hedgehog_server')
-            self.assertEqual(msg.payload, discovery.Msg.serialize(discovery.Request()))
+            command, = node2.evt_pipe.recv_multipart()
+            self.assertEqual(command, b'UPDATE')
+            peer = node2.evt_pipe.pop()
+            self.assertEqual(peer.name, node1._name)
+            self.assertEqual(peer.uuid, node1._uuid)
+            self.assertEqual(peer.services, {SERVICE: {endpoint}})
 
-            node2.peers[msg.uuid].update_service('hedgehog_server')
+            # check get_peers
 
-            msg = discovery.ApiMsg.parse(node1.events.recv())
-            self.assertIsInstance(msg, discovery.Whisper)
-            self.assertEqual(msg.name, 'Node 2')
-            self.assertEqual(msg.payload, discovery.Msg.serialize(discovery.Update('hedgehog_server', [5555])))
+            self.assertEqual(
+                {peer.name: (peer.uuid, peer.services) for peer in node2.get_peers()},
+                {peer._name: (peer._uuid, services) for peer, services in [(node1, {SERVICE: {endpoint}})]})
 
-            node1.get_endpoints('hedgehog_server')
+            # check request_service
 
-            msg = discovery.ApiMsg.parse(node1.events.recv())
-            self.assertIsInstance(msg, discovery.Service)
-            self.assertEqual(msg.service, 'hedgehog_server')
-            self.assertEqual(msg.endpoints, {endpoint})
+            node2.request_service(SERVICE)
+
+            command, = node2.evt_pipe.recv_multipart()
+            self.assertEqual(command, b'UPDATE')
+            peer = node2.evt_pipe.pop()
+            self.assertEqual(peer.name, node1._name)
+            self.assertEqual(peer.uuid, node1._uuid)
+            self.assertEqual(peer.services, {SERVICE: {endpoint}})
+
+            # check remove_service
+
+            node1.remove_service(SERVICE, 5555)
+
+            command, = node2.evt_pipe.recv_multipart()
+            self.assertEqual(command, b'UPDATE')
+            peer = node2.evt_pipe.pop()
+            self.assertEqual(peer.name, node1._name)
+            self.assertEqual(peer.uuid, node1._uuid)
+            self.assertEqual(peer.services, {})
+
+            # check get_peers
+
+            self.assertEqual(
+                {peer.name: (peer.uuid, peer.services) for peer in node2.get_peers()},
+                {peer._name: (peer._uuid, services) for peer, services in [(node1, {})]})
 
     def test_pyre(self):
         from pyre.pyre import Pyre
