@@ -83,12 +83,12 @@ class NodeActor(object):
                 sys.exit(-1)
             self.endpoint = "tcp://%s:%d" % (hostname, self.port)
 
+            # construct the header filter  (to discard none zre messages)
+            self.beacon.subscribe(struct.pack("ccc", b'Z', b'R', b'E'))
             # Set broadcast/listen beacon
             self.beacon.publish(struct.pack('cccb16sH', b'Z', b'R', b'E',
                                             BEACON_VERSION, self.identity.bytes,
                                             socket.htons(self.port)))
-            # construct the header filter  (to discard none zre messages)
-            self.beacon.subscribe(struct.pack("ccc", b'Z', b'R', b'E'))
 
             self.register_beacon()
         #else:
