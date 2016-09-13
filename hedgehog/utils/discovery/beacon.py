@@ -110,6 +110,7 @@ class BeaconActor(object):
             logger.exception("Initializing of {0} raised an exception".format(self.__class__.__name__))
 
     def _prepare_socket(self):
+        # TODO this may return None for no apparent reason (file descriptors exhausted maybe?), non-recoverable
         netinf = zhelper.get_ifaddrs()
 
         logger.debug("Available interfaces: {0}".format(netinf))
