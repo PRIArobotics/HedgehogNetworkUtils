@@ -84,6 +84,11 @@ class ServiceNodeActor(object):
 
         self.poller.register(self.cmd_pipe, zmq.POLLIN, handle_cmd_pipe)
 
+        @registry.command(b'RESTART BEACON')
+        def handle_restart_beacon():
+            self.node_actor.cmd_pipe.send(b'START')
+            self.node_actor.cmd_pipe.wait()
+
         @registry.command(b'REGISTER')
         def handle_register(service):
             added, removed = self.cmd_pipe.pop()
@@ -204,6 +209,9 @@ class ServiceNode(Node):
         node_actor = self.actor
         self.actor = Actor(self.ctx, self.service_node_class, node_actor)
         self.actor._node_actor = node_actor
+
+    def restart_beacon(self):
+        self.cmd_pipe.send(b'RESTART BEACON')
 
     def add_service(self, service, endpoint):
         port = endpoint_to_port(endpoint)
