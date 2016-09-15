@@ -80,7 +80,7 @@ class Actor(object):
 
         if not self.cmd_pipe.closed:
             self.cmd_pipe.configure(sndtimeo=0)
-            self.cmd_pipe.send_unicode('$TERM')
+            self.cmd_pipe.send(b'$TERM')
             self.cmd_pipe.close()
 
         # the option to not block is useful to receive events that happened after the destroy command

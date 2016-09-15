@@ -14,8 +14,7 @@ def __pipe(ctx, endpoint=None, hwm=1000, socket=Socket):
         return frontend, backend
     else:
         while True:
-            endpoint = "inproc://pipe-%04x-%04x\n" \
-                       % (random.randint(0, 0x10000), random.randint(0, 0x10000))
+            endpoint = "inproc://pipe-%04x-%04x" % (random.randint(0, 0x10000), random.randint(0, 0x10000))
             try:
                 frontend.bind(endpoint)
                 backend.connect(endpoint)
