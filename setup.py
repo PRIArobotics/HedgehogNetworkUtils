@@ -19,7 +19,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='hedgehog-utils',
-    version='0.0.0',
+    version='0.1.0',
     description='Utilities shared between Hedgehog projects',
     long_description=long_description,
     url="https://github.com/PRIArobotics/HedgehogUtils",
@@ -29,14 +29,14 @@ setup(
 
     # See https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
-        'Development Status :: 1 - Planning',
+        'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
         'Topic :: Software Development',
         'License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)',
         'Programming Language :: Python :: 3',
     ],
 
-    keywords='hedgehog robotics controller utility',
+    keywords='hedgehog robotics controller utility protobuf zmq discovery',
 
     # You can just specify the packages manually here if your project is
     # simple. Or you can use find_packages().
@@ -46,7 +46,7 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['pyzmq', 'pyre'],
+    install_requires=['protobuf>=3.0.*', 'pyzmq', 'pyre'],
 
     # You can install these using the following syntax, for example:
     # $ pip install -e .[dev,test]
