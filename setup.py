@@ -46,12 +46,15 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['protobuf>=3.0.*', 'pyzmq', 'pyre'],
+    install_requires=[],
 
     # You can install these using the following syntax, for example:
     # $ pip install -e .[dev,test]
     extras_require={
         'dev': ['invoke'],
+        'protobuf': ['protobuf'],
+        'zmq': ['pyzmq'],
+        'discovery': ['pyre', 'pyzmq', 'protobuf'],
     },
 
     # package_data={
