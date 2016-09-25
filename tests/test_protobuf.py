@@ -1,5 +1,5 @@
 import unittest
-from .import protobuf_tests
+import protobuf_tests
 
 
 class ProtobufTests(unittest.TestCase):

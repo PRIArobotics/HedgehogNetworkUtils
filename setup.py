@@ -19,7 +19,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='hedgehog-utils',
-    version='0.1.0',
+    version='0.1.1',
     description='Utilities shared between Hedgehog projects',
     long_description=long_description,
     url="https://github.com/PRIArobotics/HedgehogUtils",
@@ -46,12 +46,15 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['protobuf>=3.0.*', 'pyzmq', 'pyre'],
+    install_requires=[],
 
     # You can install these using the following syntax, for example:
     # $ pip install -e .[dev,test]
     extras_require={
         'dev': ['invoke'],
+        'protobuf': ['protobuf'],
+        'zmq': ['pyzmq'],
+        'discovery': ['pyre', 'pyzmq', 'protobuf'],
     },
 
     # package_data={
