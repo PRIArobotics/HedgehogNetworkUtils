@@ -5,6 +5,7 @@ import struct
 import time
 import zmq
 
+from contextlib import suppress
 from sys import platform
 from pyre import zhelper
 from ..zmq import Active
@@ -52,12 +53,9 @@ class BeaconActor(object):
             self.udpsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
             #  On some platforms we have to ask to reuse the port
-            try:
+            with suppress(AttributeError):
                 self.udpsock.setsockopt(socket.SOL_SOCKET,
                                         socket.SO_REUSEPORT, 1)
-
-            except AttributeError:
-                pass
 
             if self.broadcast_address.is_multicast:
                 # TTL
