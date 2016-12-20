@@ -271,6 +271,7 @@ class BeaconActor(object):
             if self.transmit and time.time() >= self.ping_at:
                 self.send_beacon()
                 self.ping_at = time.time() + self.interval
+        self.udpsock.close()
 
 
 class Beacon(Active):
