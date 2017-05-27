@@ -12,7 +12,8 @@ class Test(Message):
 
     @classmethod
     def _parse(cls, msg):
-        return cls(msg.field)
+        field = msg.field
+        return cls(field)
 
     def _serialize(self, msg):
         msg.field = self.field
