@@ -9,10 +9,14 @@ class ContainerMessage(object):
         self.registry = {}
         self.proto_class = proto_class
 
-    def register(self, proto_class, discriminator):
+    def register(self, proto_class, discriminator, fields=None):
         def decorator(message_class):
+            nonlocal fields
+
             desc = proto_class.DESCRIPTOR
-            meta = MessageMeta(discriminator, proto_class, desc.name, tuple(field.name for field in desc.fields))
+            if fields is None:
+                fields = tuple(field.name for field in desc.fields)
+            meta = MessageMeta(discriminator, proto_class, desc.name, fields)
 
             message_class.meta = meta
             self.registry[meta.discriminator] = message_class
