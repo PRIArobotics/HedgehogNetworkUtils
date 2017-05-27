@@ -1,6 +1,12 @@
 syntax = "proto3";
 
-message TestMessage {
+message TestMessage1 {
+    oneof payload {
+        Test test = 1;
+    }
+}
+
+message TestMessage2 {
     oneof payload {
         Test test = 1;
     }
