@@ -12,6 +12,12 @@ message TestMessage2 {
     }
 }
 
+enum TestKind {
+    DEFAULT = 0;
+    ALTERNATIVE = 1;
+}
+
 message Test {
-    uint32 field = 1;
+    TestKind kind = 1;
+    uint32 field = 2;
 }
