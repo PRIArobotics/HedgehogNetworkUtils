@@ -12,11 +12,10 @@ class MessageType:
     def register(self, proto_class, discriminator):
         def decorator(message_class):
             desc = proto_class.DESCRIPTOR
+            meta = MessageMeta(discriminator, proto_class, desc.name, tuple(field.name for field in desc.fields))
 
-            message_class.meta = MessageMeta(discriminator, proto_class, desc.name,
-                                             tuple(field.name for field in desc.fields))
-
-            self.registry[message_class.meta.discriminator] = message_class
+            message_class.meta = meta
+            self.registry[meta.discriminator] = message_class
             return message_class
         return decorator
 
