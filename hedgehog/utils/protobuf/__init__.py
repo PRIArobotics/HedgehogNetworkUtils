@@ -1,19 +1,19 @@
 from collections import namedtuple
 
 
-MessageMeta = namedtuple('MessageMeta', ('discriminator', 'type', 'name', 'fields'))
+MessageMeta = namedtuple('MessageMeta', ('discriminator', 'proto_class', 'name', 'fields'))
 
 
 class MessageType:
-    def __init__(self, type):
+    def __init__(self, proto_class):
         self.registry = {}
-        self.type = type
+        self.proto_class = proto_class
 
-    def register(self, proto_message_class, discriminator):
+    def register(self, proto_class, discriminator):
         def decorator(message_class):
-            desc = proto_message_class.DESCRIPTOR
+            desc = proto_class.DESCRIPTOR
 
-            message_class.meta = MessageMeta(discriminator, proto_message_class, desc.name,
+            message_class.meta = MessageMeta(discriminator, proto_class, desc.name,
                                              tuple(field.name for field in desc.fields))
 
             self.registry[message_class.meta.discriminator] = message_class
@@ -21,14 +21,14 @@ class MessageType:
         return decorator
 
     def parse(self, data):
-        msg = self.type()
+        msg = self.proto_class()
         msg.ParseFromString(data)
         discriminator = msg.WhichOneof('payload')
         msg_type = self.registry[discriminator]
         return msg_type._parse(getattr(msg, discriminator))
 
     def serialize(self, instance):
-        msg = self.type()
+        msg = self.proto_class()
         instance.serialize(getattr(msg, instance.meta.discriminator))
         return msg.SerializeToString()
 
@@ -45,12 +45,12 @@ class Message:
 
     @classmethod
     def parse(cls, data):
-        msg = cls.meta.type()
+        msg = cls.meta.proto_class()
         msg.ParseFromString(data)
         return cls._parse(msg)
 
     def serialize(self, msg=None):
-        msg = msg or self.meta.type()
+        msg = msg or self.meta.proto_class()
         self._serialize(msg)
         return msg.SerializeToString()
 
