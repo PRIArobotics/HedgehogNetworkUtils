@@ -1,8 +1,8 @@
-from hedgehog.utils.protobuf import MessageType, Message
+from hedgehog.utils.protobuf import ContainerMessage, Message
 from .proto import test_pb2
 
 
-Msg = MessageType(test_pb2.TestMessage)
+Msg = ContainerMessage(test_pb2.TestMessage)
 
 
 @Msg.register(test_pb2.Test, 'test')

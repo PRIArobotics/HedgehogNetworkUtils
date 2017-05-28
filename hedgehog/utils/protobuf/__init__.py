@@ -4,7 +4,7 @@ from collections import namedtuple
 MessageMeta = namedtuple('MessageMeta', ('discriminator', 'proto_class', 'name', 'fields'))
 
 
-class MessageType:
+class ContainerMessage(object):
     def __init__(self, proto_class):
         self.registry = {}
         self.proto_class = proto_class
@@ -32,7 +32,7 @@ class MessageType:
         return msg.SerializeToString()
 
 
-class Message:
+class Message(object):
     meta = None
 
     @classmethod

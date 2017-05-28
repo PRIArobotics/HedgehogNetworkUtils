@@ -1,8 +1,8 @@
-from hedgehog.utils.protobuf import MessageType, Message
+from hedgehog.utils.protobuf import ContainerMessage, Message
 from .proto import discovery_pb2
 
 
-Msg = MessageType(discovery_pb2.HedgehogDiscoveryMessage)
+Msg = ContainerMessage(discovery_pb2.HedgehogDiscoveryMessage)
 
 
 @Msg.register(discovery_pb2.ServiceRequest, 'request')
