@@ -91,7 +91,7 @@ class ProtobufTests(unittest.TestCase):
 
         proto = test_pb2.SimpleTest()
         proto.field = 1
-        msg = protobuf_tests.parse_simple_test(proto.SerializeToString())
+        msg = protobuf_tests.SimpleTest.parse(proto.SerializeToString())
 
         expected = protobuf_tests.SimpleTest(1)
         self.assertEqual(msg, expected)

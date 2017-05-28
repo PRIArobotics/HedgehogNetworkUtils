@@ -1,6 +1,6 @@
 from typing import Union
 
-from hedgehog.utils.protobuf import ContainerMessage, Message, message
+from hedgehog.utils.protobuf import ContainerMessage, Message, SimpleMessageMixin, message
 from .proto import test_pb2
 
 from .proto.test_pb2 import DEFAULT, ALTERNATIVE
@@ -46,23 +46,16 @@ def parse_test(data: bytes) -> Union[DefaultTest, AlternativeTest]:
     return _parse_test(msg)
 
 
-@message(test_pb2.SimpleTest, 'simple_test')
-class SimpleTest(Message):
+@Msg1.message(test_pb2.SimpleTest, 'simple_test')
+@Msg2.message(test_pb2.SimpleTest, 'simple_test')
+class SimpleTest(Message, SimpleMessageMixin):
     def __init__(self, field: int) -> None:
         self.field = field
 
+    @classmethod
+    def _parse(cls, msg: test_pb2.SimpleTest):
+        field = msg.field
+        return cls(field)
+
     def _serialize(self, msg: test_pb2.SimpleTest) -> None:
         msg.field = self.field
-
-
-@Msg1.parser('simple_test')
-@Msg2.parser('simple_test')
-def _parse_simple_test(msg: test_pb2.SimpleTest) -> SimpleTest:
-    field = msg.field
-    return SimpleTest(field)
-
-
-def parse_simple_test(data: bytes) -> SimpleTest:
-    msg = test_pb2.SimpleTest()
-    msg.ParseFromString(data)
-    return _parse_simple_test(msg)

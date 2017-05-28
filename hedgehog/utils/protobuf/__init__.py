@@ -24,6 +24,16 @@ class ContainerMessage(object):
         self.registry = {}
         self.proto_class = proto_class
 
+    def message(self, proto_class, discriminator, fields=None):
+        message_decorator = message(proto_class, discriminator, fields)
+        parser_decorator = self.parser(discriminator)
+
+        def decorator(message_class):
+            message_class = message_decorator(message_class)
+            parser_decorator(message_class._parse)
+            return message_class
+        return decorator
+
     def parser(self, discriminator):
         def decorator(parse_fn):
             self.registry[discriminator] = parse_fn
@@ -66,3 +76,15 @@ class Message(object):
         field_pairs = ((field, getattr(self, field)) for field in self.meta.fields)
         field_reprs = ('{}={}'.format(field, repr(value)) for field, value in field_pairs)
         return '{}({})'.format(self.__class__.__name__, ', '.join(field_reprs))
+
+
+class SimpleMessageMixin(object):
+    @classmethod
+    def _parse(cls, msg):
+        raise NotImplementedError
+
+    @classmethod
+    def parse(cls, data):
+        msg = cls.meta.proto_class()
+        msg.ParseFromString(data)
+        return cls._parse(msg)
