@@ -7,14 +7,23 @@ Msg1 = ContainerMessage(test_pb2.TestMessage1)
 Msg2 = ContainerMessage(test_pb2.TestMessage2)
 
 
-@message(test_pb2.Test, 'test')
-class Test(Message):
-    def __init__(self, kind, field):
-        self.kind = kind
+@message(test_pb2.Test, 'test', fields=('field',))
+class DefaultTest(Message):
+    def __init__(self, field):
         self.field = field
 
     def _serialize(self, msg):
-        msg.kind = self.kind
+        msg.kind = DEFAULT
+        msg.field = self.field
+
+
+@message(test_pb2.Test, 'test', fields=('field',))
+class AlternativeTest(Message):
+    def __init__(self, field):
+        self.field = field
+
+    def _serialize(self, msg):
+        msg.kind = ALTERNATIVE
         msg.field = self.field
 
 
@@ -23,7 +32,10 @@ class Test(Message):
 def _parse_test(msg):
     kind = msg.kind
     field = msg.field
-    return Test(kind, field)
+    if kind == DEFAULT:
+        return DefaultTest(field)
+    else:
+        return AlternativeTest(field)
 
 
 def parse_test(data):
