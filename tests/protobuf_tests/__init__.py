@@ -44,3 +44,25 @@ def parse_test(data: bytes) -> Union[DefaultTest, AlternativeTest]:
     msg = test_pb2.Test()
     msg.ParseFromString(data)
     return _parse_test(msg)
+
+
+@message(test_pb2.SimpleTest, 'simple_test')
+class SimpleTest(Message):
+    def __init__(self, field: int) -> None:
+        self.field = field
+
+    def _serialize(self, msg: test_pb2.SimpleTest) -> None:
+        msg.field = self.field
+
+
+@Msg1.parser('simple_test')
+@Msg2.parser('simple_test')
+def _parse_simple_test(msg: test_pb2.SimpleTest) -> SimpleTest:
+    field = msg.field
+    return SimpleTest(field)
+
+
+def parse_simple_test(data: bytes) -> SimpleTest:
+    msg = test_pb2.SimpleTest()
+    msg.ParseFromString(data)
+    return _parse_simple_test(msg)

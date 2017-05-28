@@ -20,6 +20,13 @@ class ProtobufTests(unittest.TestCase):
         expected.test.field = 1
         self.assertEqual(proto, expected.SerializeToString())
 
+        msg = protobuf_tests.SimpleTest(1)
+        proto = protobuf_tests.Msg1.serialize(msg)
+
+        expected = test_pb2.TestMessage1()
+        expected.simple_test.field = 1
+        self.assertEqual(proto, expected.SerializeToString())
+
     def test_deserialize_packed_message(self):
         proto = test_pb2.TestMessage1()
         proto.test.field = 1
@@ -34,6 +41,13 @@ class ProtobufTests(unittest.TestCase):
         msg = protobuf_tests.Msg1.parse(proto.SerializeToString())
 
         expected = protobuf_tests.AlternativeTest(1)
+        self.assertEqual(msg, expected)
+
+        proto = test_pb2.TestMessage1()
+        proto.simple_test.field = 1
+        msg = protobuf_tests.Msg1.parse(proto.SerializeToString())
+
+        expected = protobuf_tests.SimpleTest(1)
         self.assertEqual(msg, expected)
 
     def test_serialize_simple_message(self):
@@ -52,6 +66,13 @@ class ProtobufTests(unittest.TestCase):
         expected.field = 1
         self.assertEqual(proto, expected.SerializeToString())
 
+        msg = protobuf_tests.SimpleTest(1)
+        proto = msg.serialize()
+
+        expected = test_pb2.SimpleTest()
+        expected.field = 1
+        self.assertEqual(proto, expected.SerializeToString())
+
     def test_deserialize_simple_message(self):
         proto = test_pb2.Test()
         proto.field = 1
@@ -66,4 +87,11 @@ class ProtobufTests(unittest.TestCase):
         msg = protobuf_tests.parse_test(proto.SerializeToString())
 
         expected = protobuf_tests.AlternativeTest(1)
+        self.assertEqual(msg, expected)
+
+        proto = test_pb2.SimpleTest()
+        proto.field = 1
+        msg = protobuf_tests.parse_simple_test(proto.SerializeToString())
+
+        expected = protobuf_tests.SimpleTest(1)
         self.assertEqual(msg, expected)
