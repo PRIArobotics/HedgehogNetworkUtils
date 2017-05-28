@@ -1,7 +1,7 @@
 from collections import namedtuple
 
 
-MessageMeta = namedtuple('MessageMeta', ('discriminator', 'proto_class', 'name', 'fields'))
+MessageMeta = namedtuple('MessageMeta', ('discriminator', 'proto_class', 'fields'))
 
 
 class ContainerMessage(object):
@@ -16,7 +16,7 @@ class ContainerMessage(object):
             desc = proto_class.DESCRIPTOR
             if fields is None:
                 fields = tuple(field.name for field in desc.fields)
-            meta = MessageMeta(discriminator, proto_class, desc.name, fields)
+            meta = MessageMeta(discriminator, proto_class, fields)
 
             message_class.meta = meta
             self.registry[meta.discriminator] = message_class
@@ -67,5 +67,5 @@ class Message(object):
 
     def __repr__(self):
         field_pairs = ((field, getattr(self, field)) for field in self.meta.fields)
-        field_reprs = ('{}={}'.format(field, repr(value)) for field, value in field_pairs if value)
-        return '{}({})'.format(self.meta.name, ', '.join(field_reprs))
+        field_reprs = ('{}={}'.format(field, repr(value)) for field, value in field_pairs)
+        return '{}({})'.format(self.__class__.__name__, ', '.join(field_reprs))
