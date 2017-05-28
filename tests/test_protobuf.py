@@ -34,7 +34,7 @@ class ProtobufTests(unittest.TestCase):
     def test_deserialize_simple_message(self):
         proto = test_pb2.Test()
         proto.field = 1
-        msg = protobuf_tests.Test.parse(proto.SerializeToString())
+        msg = protobuf_tests.parse_test(proto.SerializeToString())
 
         expected = protobuf_tests.Test(protobuf_tests.DEFAULT, 1)
 

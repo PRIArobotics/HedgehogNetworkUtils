@@ -4,31 +4,38 @@ from collections import namedtuple
 MessageMeta = namedtuple('MessageMeta', ('discriminator', 'proto_class', 'fields'))
 
 
+def message(proto_class, discriminator, fields=None):
+    def decorator(message_class):
+        nonlocal fields
+
+        desc = proto_class.DESCRIPTOR
+        if fields is None:
+            fields = tuple(field.name for field in desc.fields)
+        meta = MessageMeta(discriminator, proto_class, fields)
+
+        message_class.meta = meta
+        return message_class
+
+    return decorator
+
+
 class ContainerMessage(object):
     def __init__(self, proto_class):
         self.registry = {}
         self.proto_class = proto_class
 
-    def register(self, proto_class, discriminator, fields=None):
-        def decorator(message_class):
-            nonlocal fields
-
-            desc = proto_class.DESCRIPTOR
-            if fields is None:
-                fields = tuple(field.name for field in desc.fields)
-            meta = MessageMeta(discriminator, proto_class, fields)
-
-            message_class.meta = meta
-            self.registry[meta.discriminator] = message_class
-            return message_class
+    def parser(self, discriminator):
+        def decorator(parse_fn):
+            self.registry[discriminator] = parse_fn
+            return parse_fn
         return decorator
 
     def parse(self, data):
         msg = self.proto_class()
         msg.ParseFromString(data)
         discriminator = msg.WhichOneof('payload')
-        msg_type = self.registry[discriminator]
-        return msg_type._parse(getattr(msg, discriminator))
+        parse_fn = self.registry[discriminator]
+        return parse_fn(getattr(msg, discriminator))
 
     def serialize(self, instance):
         msg = self.proto_class()
@@ -39,18 +46,8 @@ class ContainerMessage(object):
 class Message(object):
     meta = None
 
-    @classmethod
-    def _parse(cls, msg):
-        raise NotImplementedError
-
     def _serialize(self, msg):
         raise NotImplementedError
-
-    @classmethod
-    def parse(cls, data):
-        msg = cls.meta.proto_class()
-        msg.ParseFromString(data)
-        return cls._parse(msg)
 
     def serialize(self, msg=None):
         msg = msg or self.meta.proto_class()
