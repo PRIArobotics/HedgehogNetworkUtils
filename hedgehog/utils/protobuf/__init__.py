@@ -5,14 +5,12 @@ MessageMeta = namedtuple('MessageMeta', ('discriminator', 'proto_class', 'fields
 
 
 def message(proto_class, discriminator, fields=None):
+    if fields is None:
+        fields = tuple(field.name for field in proto_class.DESCRIPTOR.fields)
+
+    meta = MessageMeta(discriminator, proto_class, fields)
+
     def decorator(message_class):
-        nonlocal fields
-
-        desc = proto_class.DESCRIPTOR
-        if fields is None:
-            fields = tuple(field.name for field in desc.fields)
-        meta = MessageMeta(discriminator, proto_class, fields)
-
         message_class.meta = meta
         return message_class
 
