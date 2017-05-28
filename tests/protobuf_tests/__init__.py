@@ -53,7 +53,7 @@ class SimpleTest(Message, SimpleMessageMixin):
         self.field = field
 
     @classmethod
-    def _parse(cls, msg: test_pb2.SimpleTest):
+    def _parse(cls, msg: test_pb2.SimpleTest) -> 'SimpleTest':
         field = msg.field
         return cls(field)
 

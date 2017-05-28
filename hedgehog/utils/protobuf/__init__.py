@@ -1,16 +1,20 @@
+from typing import Callable, Dict, Iterable, Type, TypeVar
+
 from collections import namedtuple
+
+from google.protobuf.message import Message as ProtoMessage
 
 
 MessageMeta = namedtuple('MessageMeta', ('discriminator', 'proto_class', 'fields'))
 
 
-def message(proto_class, discriminator, fields=None):
+def message(proto_class: Type[ProtoMessage], discriminator: str, fields: Iterable[str]=None):
     if fields is None:
         fields = tuple(field.name for field in proto_class.DESCRIPTOR.fields)
 
     meta = MessageMeta(discriminator, proto_class, fields)
 
-    def decorator(message_class):
+    def decorator(message_class: Type[Message]):
         message_class.meta = meta
         return message_class
 
@@ -18,46 +22,46 @@ def message(proto_class, discriminator, fields=None):
 
 
 class ContainerMessage(object):
-    def __init__(self, proto_class):
-        self.registry = {}
+    def __init__(self, proto_class: Type[ProtoMessage]) -> None:
+        self.registry = {}  # type: Dict[str, Callable[[ProtoMessage], Message]]
         self.proto_class = proto_class
 
-    def message(self, proto_class, discriminator, fields=None):
+    def message(self, proto_class: Type[ProtoMessage], discriminator: str, fields: Iterable[str]=None):
         message_decorator = message(proto_class, discriminator, fields)
         parser_decorator = self.parser(discriminator)
 
-        def decorator(message_class):
+        def decorator(message_class: Type[SimpleMessageMixin]):
             message_class = message_decorator(message_class)
             parser_decorator(message_class._parse)
             return message_class
         return decorator
 
-    def parser(self, discriminator):
-        def decorator(parse_fn):
+    def parser(self, discriminator: str):
+        def decorator(parse_fn: Callable[[ProtoMessage], Message]):
             self.registry[discriminator] = parse_fn
             return parse_fn
         return decorator
 
-    def parse(self, data):
+    def parse(self, data: bytes) -> 'Message':
         msg = self.proto_class()
         msg.ParseFromString(data)
         discriminator = msg.WhichOneof('payload')
         parse_fn = self.registry[discriminator]
         return parse_fn(getattr(msg, discriminator))
 
-    def serialize(self, instance):
+    def serialize(self, instance: 'Message') -> bytes:
         msg = self.proto_class()
         instance.serialize(getattr(msg, instance.meta.discriminator))
         return msg.SerializeToString()
 
 
 class Message(object):
-    meta = None
+    meta = None  # type: MessageMeta
 
-    def _serialize(self, msg):
+    def _serialize(self, msg: ProtoMessage) -> None:
         raise NotImplementedError
 
-    def serialize(self, msg=None):
+    def serialize(self, msg: ProtoMessage=None) -> bytes:
         msg = msg or self.meta.proto_class()
         self._serialize(msg)
         return msg.SerializeToString()
@@ -78,11 +82,11 @@ class Message(object):
 
 class SimpleMessageMixin(object):
     @classmethod
-    def _parse(cls, msg):
+    def _parse(cls, msg: ProtoMessage) -> Message:
         raise NotImplementedError
 
     @classmethod
-    def parse(cls, data):
+    def parse(cls, data: bytes):
         msg = cls.meta.proto_class()
         msg.ParseFromString(data)
         return cls._parse(msg)
