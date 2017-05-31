@@ -1,12 +1,12 @@
-from hedgehog.utils.protobuf import MessageType, Message
+from hedgehog.utils.protobuf import ContainerMessage, Message, SimpleMessageMixin
 from .proto import discovery_pb2
 
 
-Msg = MessageType(discovery_pb2.HedgehogDiscoveryMessage)
+Msg = ContainerMessage(discovery_pb2.HedgehogDiscoveryMessage)
 
 
-@Msg.register(discovery_pb2.ServiceRequest, 'request')
-class Request(Message):
+@Msg.message(discovery_pb2.ServiceRequest, 'request')
+class Request(Message, SimpleMessageMixin):
     def __init__(self, service=''):
         self.service = service
 
@@ -18,8 +18,8 @@ class Request(Message):
         msg.service = self.service
 
 
-@Msg.register(discovery_pb2.ServiceUpdate, 'update')
-class Update(Message):
+@Msg.message(discovery_pb2.ServiceUpdate, 'update')
+class Update(Message, SimpleMessageMixin):
     def __init__(self, service='', ports=()):
         self.service = service
         self.ports = set(ports)

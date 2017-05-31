@@ -1,11 +1,29 @@
 syntax = "proto3";
 
-message TestMessage {
+message TestMessage1 {
     oneof payload {
         Test test = 1;
+        SimpleTest simple_test = 2;
     }
 }
 
+message TestMessage2 {
+    oneof payload {
+        Test test = 1;
+        SimpleTest simple_test = 2;
+    }
+}
+
+enum TestKind {
+    DEFAULT = 0;
+    ALTERNATIVE = 1;
+}
+
 message Test {
+    TestKind kind = 1;
+    uint32 field = 2;
+}
+
+message SimpleTest {
     uint32 field = 1;
 }
