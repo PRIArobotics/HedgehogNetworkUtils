@@ -1,9 +1,15 @@
+from typing import Any, Callable, Dict, Sequence
+
 import logging
 import threading
+import zmq
 
-from .pipe import extended_pipe
+from .pipe import extended_pipe, ExtendedSocket
 
 logger = logging.getLogger(__name__)
+
+
+ActorFn = Callable[[zmq.Context, ExtendedSocket, ExtendedSocket], None]
 
 
 class Actor(object):
@@ -28,7 +34,7 @@ class Actor(object):
     events after issuing destruction.
     """
 
-    def __init__(self, ctx, actor, *args, **kwargs):
+    def __init__(self, ctx: zmq.Context, actor: ActorFn, *args, **kwargs) -> None:
         self.cmd_pipe, self._cmd_pipe = extended_pipe(ctx)
         self.evt_pipe, self._evt_pipe = extended_pipe(ctx)
 
@@ -92,13 +98,13 @@ class Actor(object):
 
 
 class CommandRegistry(object):
-    def __init__(self):
-        self.cmds = {}
+    def __init__(self) -> None:
+        self.cmds = {}  # type: Dict[bytes, Callable]
 
-    def register(self, command, callback):
+    def register(self, command: bytes, callback: Callable) -> None:
         self.cmds[command] = callback
 
-    def command(self, command):
+    def command(self, command: bytes):
         """
         reg.command(a)(b) is the same as reg.register(a, b).
         This function is meant to be used as a decorator:
@@ -109,7 +115,7 @@ class CommandRegistry(object):
         """
         return lambda callback: self.register(command, callback)
 
-    def handle(self, msg):
+    def handle(self, msg: Sequence[bytes]) -> Any:
         """
         Splits the message into command and payload and dispatches it to a handler.
         The first part of the received multipart message is the command, which is mapped to a handler. The rest of the
