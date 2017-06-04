@@ -1,7 +1,9 @@
 import unittest
+import time
 import zmq
 from hedgehog.utils.zmq.pipe import pipe, extended_pipe
 from hedgehog.utils.zmq.actor import Actor, CommandRegistry
+from hedgehog.utils.zmq.timer import Timer
 
 
 class PipeTests(unittest.TestCase):
@@ -88,3 +90,28 @@ class ActorTests(unittest.TestCase):
             assert payload == b'payload'
 
         registry.handle((b'test', b'payload'))
+
+
+class TimerTests(unittest.TestCase):
+    def test_timer(self):
+        ctx = zmq.Context()
+        with Timer(ctx) as timer:
+            a = timer.register(0.002, "a")
+            time.sleep(0.003)  # 0:a, 2:a; time=3
+            b = timer.register(0.002, "b")
+            time.sleep(0.002)  # 3:b, 4:a, 5:b; time=5
+            timer.unregister(a)
+            c = timer.register(0.001, "c", repeat=False)
+            time.sleep(0.003)  # 6:c, 7:b; time=8
+            timer.unregister(b)
+            time.sleep(0.002)  # time=10
+
+            timers = [a, a, b, a, b, c, b]
+
+            events = timer.evt_pipe.poll(0)
+            while events & zmq.POLLIN:
+                timer.evt_pipe.recv_expect(b'TIMER')
+                then, t = timer.evt_pipe.pop()
+                self.assertIs(t, timers.pop(0))
+                events = timer.evt_pipe.poll(0)
+            self.assertEqual(len(timers), 0)

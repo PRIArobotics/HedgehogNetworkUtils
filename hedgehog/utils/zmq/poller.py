@@ -1,4 +1,4 @@
-from typing import Any, Dict, KeysView, List, Tuple
+from typing import Any, Dict, KeysView, List, Tuple, Union
 
 import zmq
 
@@ -34,5 +34,5 @@ class Poller(object):
         self._poller.unregister(socket)
         del self.data[socket]
 
-    def poll(self, timeout: int=None) -> List[Tuple[SocketLike, int, Any]]:
+    def poll(self, timeout: Union[float, int]=None) -> List[Tuple[SocketLike, int, Any]]:
         return [(socket, event, self.data[socket]) for socket, event in self._poller.poll(timeout)]
