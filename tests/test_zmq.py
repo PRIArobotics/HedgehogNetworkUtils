@@ -115,3 +115,21 @@ class TimerTests(unittest.TestCase):
                 self.assertIs(t, timers.pop(0))
                 events = timer.evt_pipe.poll(0)
             self.assertEqual(len(timers), 0)
+
+    def test_timer_load(self):
+        ctx = zmq.Context()
+        with Timer(ctx) as timer:
+            ts = [timer.register(0.01, id) for id in range(100)]
+            time.sleep(0.015)
+            for t in ts:
+                timer.unregister(t)
+
+            timers = [0 for t in ts]
+
+            events = timer.evt_pipe.poll(0)
+            while events & zmq.POLLIN:
+                timer.evt_pipe.recv_expect(b'TIMER')
+                then, t = timer.evt_pipe.pop()
+                timers[t.aux] += 1
+                events = timer.evt_pipe.poll(0)
+            self.assertEqual(timers, [2 for t in ts])
