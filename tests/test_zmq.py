@@ -93,7 +93,7 @@ class ActorTests(unittest.TestCase):
 
 
 class TimerTests(unittest.TestCase):
-    def test_timer(self):
+    def test_order(self):
         ctx = zmq.Context()
         with Timer(ctx) as timer:
             a = timer.register(0.002, "a")
@@ -116,7 +116,7 @@ class TimerTests(unittest.TestCase):
                 events = timer.evt_pipe.poll(0)
             self.assertEqual(len(timers), 0)
 
-    def test_timer_load(self):
+    def test_load(self):
         ctx = zmq.Context()
         with Timer(ctx) as timer:
             ts = [timer.register(0.01, id) for id in range(100)]
@@ -133,3 +133,8 @@ class TimerTests(unittest.TestCase):
                 timers[t.aux] += 1
                 events = timer.evt_pipe.poll(0)
             self.assertEqual(timers, [2 for t in ts])
+
+    def test_terminate(self):
+        ctx = zmq.Context()
+        with Timer(ctx) as timer:
+            timer.register(0.1)
