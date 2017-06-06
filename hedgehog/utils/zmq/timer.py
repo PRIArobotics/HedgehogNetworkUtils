@@ -100,4 +100,3 @@ class Timer(Active):
         if self.actor is not None:
             self.actor.destroy()
             self.actor = None
-            self._socket = None
