@@ -132,8 +132,7 @@ class DiscoveryTests(unittest.TestCase):
             self.assertEqual(command.decode(), "WHISPER")
             self.assertEqual(uuid, node1.uuid().bytes)
             self.assertEqual(name.decode(), node1.name())
-            self.assertEqual(msg, [b'a'])
-            # self.assertEqual(msg, [b'a', b'b'])  # TODO
+            self.assertEqual(msg, [b'a', b'b'])
 
             node1.shout('test', [b'a', b'b'])
             command, uuid, name, group, *msg = node2.recv()
@@ -142,8 +141,7 @@ class DiscoveryTests(unittest.TestCase):
             self.assertEqual(uuid, node1.uuid().bytes)
             self.assertEqual(name.decode(), node1.name())
             self.assertEqual(group.decode(), 'test')
-            self.assertEqual(msg, [b'a'])
-            # self.assertEqual(msg, [b'a', b'b'])  # TODO
+            self.assertEqual(msg, [b'a', b'b'])
         finally:
             for node in nodes:
                 node.stop()
@@ -182,8 +180,7 @@ class DiscoveryTests(unittest.TestCase):
             self.assertEqual(command, b'WHISPER')
             self.assertEqual(uuid, node1.uuid.bytes)
             self.assertEqual(name.decode(), node1.name)
-            self.assertEqual(msg, [b'a'])
-            # self.assertEqual(msg, [b'a', b'b'])  # TODO
+            self.assertEqual(msg, [b'a', b'b'])
 
             node1.shout('test', [b'a', b'b'])
             command, uuid, name, group, *msg = node2.evt_pipe.recv_multipart()
@@ -192,5 +189,4 @@ class DiscoveryTests(unittest.TestCase):
             self.assertEqual(uuid, node1.uuid.bytes)
             self.assertEqual(name.decode(), node1.name)
             self.assertEqual(group.decode(), 'test')
-            self.assertEqual(msg, [b'a'])
-            # self.assertEqual(msg, [b'a', b'b'])  # TODO
+            self.assertEqual(msg, [b'a', b'b'])

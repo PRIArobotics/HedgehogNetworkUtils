@@ -1,7 +1,9 @@
 import unittest
+import time
 import zmq
 from hedgehog.utils.zmq.pipe import pipe, extended_pipe
 from hedgehog.utils.zmq.actor import Actor, CommandRegistry
+from hedgehog.utils.zmq.timer import Timer
 
 
 class PipeTests(unittest.TestCase):
@@ -88,3 +90,52 @@ class ActorTests(unittest.TestCase):
             assert payload == b'payload'
 
         registry.handle((b'test', b'payload'))
+
+
+class TimerTests(unittest.TestCase):
+    def test_order(self):
+        ctx = zmq.Context()
+        with Timer(ctx) as timer:
+            a = timer.register(0.010, "a")
+            time.sleep(0.015)  # 0: a, 10: a; time=15
+            b = timer.register(0.010, "b")
+            time.sleep(0.010)  # 15: b, 20: a, 25: b; time=25
+            timer.unregister(a)
+            c = timer.register(0.005, "c", repeat=False)
+            time.sleep(0.015)  # 30:c, 35:b; time=40
+            timer.unregister(b)
+            time.sleep(0.010)  # time=50
+
+            timers = [a, a, b, a, b, c, b]
+
+            events = timer.evt_pipe.poll(0)
+            while events & zmq.POLLIN:
+                timer.evt_pipe.recv_expect(b'TIMER')
+                then, t = timer.evt_pipe.pop()
+                self.assertIs(t, timers.pop(0))
+                events = timer.evt_pipe.poll(0)
+            self.assertEqual(len(timers), 0)
+
+    @unittest.skip
+    def test_load(self):
+        ctx = zmq.Context()
+        with Timer(ctx) as timer:
+            ts = [timer.register(0.01, id) for id in range(100)]
+            time.sleep(0.015)
+            for t in ts:
+                timer.unregister(t)
+
+            timers = [0 for t in ts]
+
+            events = timer.evt_pipe.poll(0)
+            while events & zmq.POLLIN:
+                timer.evt_pipe.recv_expect(b'TIMER')
+                then, t = timer.evt_pipe.pop()
+                timers[t.aux] += 1
+                events = timer.evt_pipe.poll(0)
+            self.assertEqual(timers, [2 for t in ts])
+
+    def test_terminate(self):
+        ctx = zmq.Context()
+        with Timer(ctx) as timer:
+            timer.register(0.1)

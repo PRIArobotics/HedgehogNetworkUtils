@@ -1,0 +1,23 @@
+language: python
+
+# using container based testing is faster, but you can't use sudo
+sudo: false
+
+python:
+    - "3.6"
+#    - "2.7"
+
+# install other libraries using pip
+install:
+    - pip install https://github.com/zeromq/pyre/archive/master.zip
+    - pip install -Ue .[dev,protobuf,zmq,discovery]
+    - wget https://github.com/google/protobuf/releases/download/v3.1.0/protoc-3.1.0-linux-x86_64.zip
+    - unzip protoc-3.1.0-linux-x86_64.zip
+    - PATH=./bin:$PATH
+    - invoke protoc
+    - export PYTHONPATH="./tests:$PYTHONPATH"
+
+# command to run tests
+script:
+    - echo $PYTHONPATH
+    - nosetests -vw tests -e 'parse_test'
