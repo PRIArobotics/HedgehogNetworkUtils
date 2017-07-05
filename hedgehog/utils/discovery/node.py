@@ -416,14 +416,14 @@ class NodeActor(object):
             # Pass up to caller API as WHISPER event
             id = peer.get_identity().bytes
             name = peer.get_name()
-            self.evt_pipe.send_multipart((b'WHISPER', id, name.encode(), *zmsg.content))
+            self.evt_pipe.send_multipart((b'WHISPER', id, name.encode()) + tuple(zmsg.content))
 
         @command(ZreMsg.SHOUT)
         def handle_shout(peer, zmsg):
             # Pass up to caller API as WHISPER event
             id = peer.get_identity().bytes
             name = peer.get_name()
-            self.evt_pipe.send_multipart((b'SHOUT', id, name.encode(), zmsg.get_group().encode(), *zmsg.content))
+            self.evt_pipe.send_multipart((b'SHOUT', id, name.encode(), zmsg.get_group().encode()) + tuple(zmsg.content))
 
         @command(ZreMsg.PING)
         def handle_ping(peer, zmsg):
