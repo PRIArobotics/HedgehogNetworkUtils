@@ -1,4 +1,4 @@
-import unittest
+import pytest
 import time
 import zmq
 from hedgehog.utils.zmq.pipe import pipe, extended_pipe
@@ -6,7 +6,7 @@ from hedgehog.utils.zmq.actor import Actor, CommandRegistry
 from hedgehog.utils.zmq.timer import Timer
 
 
-class PipeTests(unittest.TestCase):
+class TestPipe(object):
     def test_pipe(self):
         ctx = zmq.Context()
 
@@ -24,10 +24,10 @@ class PipeTests(unittest.TestCase):
         a.push(obj)
         a.signal()
         b.wait()
-        self.assertTrue(b.pop() is obj)
+        assert b.pop() is obj
 
 
-class ActorTests(unittest.TestCase):
+class TestActor(object):
     def test_actor_termination(self):
         def task(ctx, cmd_pipe, evt_pipe):
             evt_pipe.signal()
@@ -92,7 +92,7 @@ class ActorTests(unittest.TestCase):
         registry.handle((b'test', b'payload'))
 
 
-class TimerTests(unittest.TestCase):
+class TestTimer(object):
     def test_order(self):
         ctx = zmq.Context()
         with Timer(ctx) as timer:
@@ -112,11 +112,11 @@ class TimerTests(unittest.TestCase):
             while events & zmq.POLLIN:
                 timer.evt_pipe.recv_expect(b'TIMER')
                 then, t = timer.evt_pipe.pop()
-                self.assertIs(t, timers.pop(0))
+                assert t is timers.pop(0)
                 events = timer.evt_pipe.poll(0)
-            self.assertEqual(len(timers), 0)
+            assert len(timers) == 0
 
-    @unittest.skip
+    @pytest.mark.skip
     def test_load(self):
         ctx = zmq.Context()
         with Timer(ctx) as timer:
@@ -133,7 +133,7 @@ class TimerTests(unittest.TestCase):
                 then, t = timer.evt_pipe.pop()
                 timers[t.aux] += 1
                 events = timer.evt_pipe.poll(0)
-            self.assertEqual(timers, [2 for t in ts])
+            assert timers == [2 for t in ts]
 
     def test_terminate(self):
         ctx = zmq.Context()

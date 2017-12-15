@@ -19,5 +19,4 @@ install:
     - export PYTHONPATH="./tests:$PYTHONPATH"
 
 # command to run tests
-script:
-    - nosetests -vw tests -e 'parse_test'
+script: pytest
