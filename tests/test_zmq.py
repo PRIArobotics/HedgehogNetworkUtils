@@ -1,8 +1,9 @@
 import pytest
 import time
-import zmq
+import zmq.asyncio
 from hedgehog.utils.zmq.pipe import pipe, extended_pipe
 from hedgehog.utils.zmq.actor import Actor, CommandRegistry
+from hedgehog.utils.zmq.async_socket import Socket
 from hedgehog.utils.zmq.timer import Timer
 
 
@@ -25,6 +26,19 @@ class TestPipe(object):
         a.signal()
         b.wait()
         assert b.pop() is obj
+
+
+class TestAsyncSocket(object):
+    @pytest.mark.asyncio
+    async def test_async_socket(self):
+        ctx = zmq.asyncio.Context()
+
+        a, b = (Socket(ctx, zmq.PAIR).configure(hwm=1000, linger=0) for _ in range(2))
+        a.bind('inproc://endpoint')
+        b.connect('inproc://endpoint')
+
+        await a.signal()
+        await b.wait()
 
 
 class TestActor(object):
