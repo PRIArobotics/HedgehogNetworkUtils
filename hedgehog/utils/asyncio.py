@@ -1,6 +1,38 @@
 import asyncio
+from aiostream import operator, stream
 
-__all__ = ['pipe', 'Actor', 'ActorException']
+__all__ = ['repeat_func', 'repeat_func_eof', 'stream_from_queue', 'pipe', 'Actor', 'ActorException']
+
+
+@operator
+def repeat_func(func, times=None, *, interval=0):
+    """
+    Repeats the result of a 0-ary function either indefinitely, or for a defined number of times.
+    `times` and `interval` behave exactly like with `aiostream.create.repeat`.
+
+    A useful idiom is to combine an indefinite `repeat_func` stream with `aiostream.select.takewhile`
+    to terminate the stream at some point.
+    """
+    base = stream.repeat.raw((), times, interval=interval)
+    return stream.starmap.raw(base, func)
+
+
+@operator
+def repeat_func_eof(func, eof, *, interval=0, use_is=False):
+    """
+    Repeats the result of a 0-ary function until an `eof` item is reached.
+    The `eof` item itself is not part of the resulting stream; by setting `use_is` to true,
+    an equality check is used for eof.
+    `times` and `interval` behave exactly like with `aiostream.create.repeat`.
+    """
+
+    pred = (lambda item: item != eof) if not use_is else (lambda item: item is not eof)
+    base = repeat_func.raw(func, interval=interval)
+    return stream.takewhile.raw(base, pred)
+
+
+def stream_from_queue(queue, eof, *, use_is=False):
+    return repeat_func_eof(queue.get, eof, use_is=use_is)
 
 
 def pipe():
