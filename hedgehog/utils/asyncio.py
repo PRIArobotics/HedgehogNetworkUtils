@@ -25,17 +25,23 @@ def repeat_func_eof(func, eof, *, interval=0, use_is=False):
     an equality check is used for eof.
     `times` and `interval` behave exactly like with `aiostream.create.repeat`.
     """
-
     pred = (lambda item: item != eof) if not use_is else (lambda item: item is not eof)
     base = repeat_func.raw(func, interval=interval)
     return stream.takewhile.raw(base, pred)
 
 
 def stream_from_queue(queue, eof, *, use_is=False):
+    """
+    Repeatedly gets an item from the given queue, until an item equal to `eof` (using `==` or `is`) is encountered.
+    """
     return repeat_func_eof(queue.get, eof, use_is=use_is)
 
 
 def pipe():
+    """
+    Returns a pair of objects that both support the operations `send` and `recv`
+    that transmit arbitrary values between the two objects.
+    """
     class _End(object):
         def __init__(self, r, w):
             self._r = r
@@ -57,6 +63,24 @@ class ActorException(Exception):
 
 
 class Actor(object):
+    """
+    An `Actor` encapsulates a task that is executed on an event loop, and two pipes for communicating with that task.
+
+    The command pipe is used for communication initiated by the actor's creator, i.e. commands and their results.
+    The event pipe is meant for communication initiated by the actor's task.
+
+    An actor is an asynchronous content manager and can be used with `async with`.
+    When entering the block, the actor's `run` method is executed as a task,
+    and when exiting, the actor is asked to shut down.
+
+    `run` has to conform to a simple contract:
+    - As the first message on the event pipe, the binary string `b'$START'` must be sent.
+      This indicates finished actor initialization, and only then will the caller enter the actor's context.
+    - After that, the actor must not send the binary string `b'$TERM'` as an event.
+    - When the binary command `b'$TERM'` is received, the run method must terminate.
+      Only then will the caller exit the actor's context.
+    """
+
     class Task(object):
         def __init__(self, run):
             self.cmd_pipe, self._cmd_pipe = pipe()
