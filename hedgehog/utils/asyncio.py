@@ -79,6 +79,10 @@ class Actor(object):
     - After that, the actor must not send the binary string `b'$TERM'` as an event.
     - When the binary command `b'$TERM'` is received, the run method must terminate.
       Only then will the caller exit the actor's context.
+
+    The binary string `b'$TERM'` will automatically be sent as an event to the caller when `run` exits.
+    That means the actor's caller should watch for this to know when the actor task terminates,
+    be it by an error or not.
     """
 
     class Task(object):
@@ -114,6 +118,9 @@ class Actor(object):
         async def destroy(self, block=True):
             assert self._state is not None
 
+            if self._future.done():
+                self._state = 'terminated'
+
             if self._state == 'running':
                 await self.cmd_pipe.send(b'$TERM')
                 self._state = 'destroyed'
@@ -122,6 +129,8 @@ class Actor(object):
                 while (await self.evt_pipe.recv()) != b'$TERM':
                     pass
                 self._state = 'terminated'
+
+            if block and self._state == 'terminated':
                 await self._future
 
     async def __aenter__(self):

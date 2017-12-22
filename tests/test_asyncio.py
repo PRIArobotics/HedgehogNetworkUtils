@@ -143,3 +143,17 @@ async def test_init_failing_actor():
         with assert_actor_cleanup(InitFailingActor()) as a:
             async with a:
                 pass
+
+
+@pytest.mark.asyncio
+async def test_actor_consume_term():
+    class MyException(Exception):
+        pass
+
+    class FailingActor(Actor):
+        async def run(self, cmd_pipe, evt_pipe):
+            await evt_pipe.send(b'$START')
+
+    with assert_actor_cleanup(FailingActor()) as a:
+        async with a:
+            assert await a.evt_pipe.recv() == b'$TERM'
