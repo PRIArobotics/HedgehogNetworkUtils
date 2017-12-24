@@ -58,11 +58,31 @@ def pipe():
     return _End(a, b), _End(b, a)
 
 
+class Active(object):
+    """
+    An Active object is one that can be "started" and "stopped", meaning it will then execute code asynchronously.
+    Starting and stopping can be done manually, or by using the object as a context manager, with `async with`.
+    """
+
+    async def __aenter__(self):
+        await self.start()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.stop()
+
+    async def start(self) -> None:
+        pass  # pragma: no cover
+
+    async def stop(self) -> None:
+        pass  # pragma: no cover
+
+
 class ActorException(Exception):
     pass
 
 
-class Actor(object):
+class Actor(Active):
     """
     An `Actor` encapsulates a task that is executed on an event loop, and two pipes for communicating with that task.
 
@@ -70,19 +90,21 @@ class Actor(object):
     The event pipe is meant for communication initiated by the actor's task.
 
     An actor is an asynchronous content manager and can be used with `async with`.
-    When entering the block, the actor's `run` method is executed as a task,
-    and when exiting, the actor is asked to shut down.
+    When entering the block or calling `start()`, the actor's `run` method is executed as a task,
+    and when exiting or calling `stop()`, the actor is asked to shut down.
+    Calling `stop(block=True)` asks the actor for shutdown without waiting for the shutdown to complete.
+    This is useful for actors that produce events during shutdown.
 
     `run` has to conform to a simple contract:
     - As the first message on the event pipe, the binary string `b'$START'` must be sent.
       This indicates finished actor initialization, and only then will the caller enter the actor's context.
     - After that, the actor must not send the binary string `b'$TERM'` as an event.
-    - When the binary command `b'$TERM'` is received, the run method must terminate.
-      Only then will the caller exit the actor's context.
+    - When the binary command `b'$TERM'` is received, the run method must eventually terminate.
+      It may send additional events to the caller during that time.
 
     The binary string `b'$TERM'` will automatically be sent as an event to the caller when `run` exits.
     That means the actor's caller should watch for this to know when the actor task terminates,
-    be it by an error or not.
+    be it by a shutdown request, an error, or regularly.
     """
 
     class Task(object):
@@ -126,14 +148,14 @@ class Actor(object):
                 self._state = 'destroyed'
 
             if block and self._state == 'destroyed':
-                while (await self.evt_pipe.recv()) != b'$TERM':
+                while await self.evt_pipe.recv() != b'$TERM':
                     pass
                 self._state = 'terminated'
 
             if block and self._state == 'terminated':
                 await self._future
 
-    async def __aenter__(self):
+    async def start(self):
         self._task = Actor.Task(self.run)
         try:
             await self._task.start()
@@ -142,11 +164,12 @@ class Actor(object):
             raise
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def stop(self, block=True):
         try:
-            await self._task.destroy()
+            await self._task.destroy(block)
         finally:
-            self._task = None
+            if block:
+                self._task = None
 
     @property
     def cmd_pipe(self):

@@ -92,7 +92,6 @@ async def test_actor():
                         msg, = payload
                         await evt_pipe.send((b'AGREET', f"{self.greeting} {msg}"))
                 assert i == len(expected) - 1
-            # this happens when terminating the actor, so is always ignored
             await evt_pipe.send((b'IGNORED',))
 
     with assert_actor_cleanup(MyActor("hello")) as a:
@@ -157,3 +156,17 @@ async def test_actor_consume_term():
     with assert_actor_cleanup(FailingActor()) as a:
         async with a:
             assert await a.evt_pipe.recv() == b'$TERM'
+
+
+@pytest.mark.asyncio
+async def test_actor_consume_term():
+    class AfterTerminationActor(Actor):
+        async def run(self, cmd_pipe, evt_pipe):
+            await evt_pipe.send(b'$START')
+            assert await cmd_pipe.recv() == b'$TERM'
+            await evt_pipe.send(b'AFTER_TERM')
+
+    with assert_actor_cleanup(AfterTerminationActor()) as a:
+        async with a:
+            await a.stop(block=False)
+            assert await a.evt_pipe.recv() == b'AFTER_TERM'
