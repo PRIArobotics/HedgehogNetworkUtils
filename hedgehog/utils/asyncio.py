@@ -3,6 +3,8 @@ from aiostream import operator, stream
 
 __all__ = ['repeat_func', 'repeat_func_eof', 'stream_from_queue', 'pipe', 'Actor', 'ActorException']
 
+__DEFAULT = object()
+
 
 @operator
 def repeat_func(func, times=None, *, interval=0):
@@ -30,11 +32,14 @@ def repeat_func_eof(func, eof, *, interval=0, use_is=False):
     return stream.takewhile.raw(base, pred)
 
 
-def stream_from_queue(queue, eof, *, use_is=False):
+def stream_from_queue(queue, eof=__DEFAULT, *, use_is=False):
     """
     Repeatedly gets an item from the given queue, until an item equal to `eof` (using `==` or `is`) is encountered.
     """
-    return repeat_func_eof(queue.get, eof, use_is=use_is)
+    if eof is not __DEFAULT:
+        return repeat_func_eof(queue.get, eof, use_is=use_is)
+    else:
+        return repeat_func(queue.get)
 
 
 def pipe():

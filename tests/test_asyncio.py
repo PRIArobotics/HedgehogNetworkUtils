@@ -41,6 +41,19 @@ async def test_repeat_func_eof():
 
 @pytest.mark.asyncio
 async def test_stream_from_queue():
+    queue = asyncio.Queue()
+    await queue.put(0)
+
+    async def put_next(item):
+        await queue.put(item + 1)
+
+    await assert_stream(
+        [0, 1, 2],
+        (stream_from_queue(queue) | p_.action(put_next))[:3])
+
+
+@pytest.mark.asyncio
+async def test_stream_from_queue_eof():
     EOF = object()
     queue = asyncio.Queue()
     await queue.put(3)
