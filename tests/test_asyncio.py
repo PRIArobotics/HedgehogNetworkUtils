@@ -1,4 +1,6 @@
 import pytest
+from hedgehog.utils.test_utils import event_loop
+
 import asyncio
 import itertools
 from aiostream import stream, pipe as p_
@@ -6,6 +8,10 @@ from contextlib import contextmanager
 
 from hedgehog.utils.asyncio import repeat_func, repeat_func_eof, stream_from_queue, pipe
 from hedgehog.utils.asyncio import Actor, ActorException
+
+
+# Pytest fixtures
+event_loop
 
 
 async def assert_stream(expected, _stream):
@@ -26,56 +32,61 @@ def assert_actor_cleanup(actor):
 
 
 @pytest.mark.asyncio
-async def test_repeat_func():
-    await assert_stream(
-        [0, 1, 2],
-        repeat_func(itertools.count().__next__, 3))
+async def test_repeat_func(event_loop):
+    with event_loop.assert_cleanup_steps(steps=[]):
+        await assert_stream(
+            [0, 1, 2],
+            repeat_func(itertools.count().__next__, 3))
 
 
 @pytest.mark.asyncio
-async def test_repeat_func_eof():
-    await assert_stream(
-        [0, 1, 2],
-        repeat_func_eof(itertools.count().__next__, 3))
+async def test_repeat_func_eof(event_loop):
+    with event_loop.assert_cleanup_steps(steps=[]):
+        await assert_stream(
+            [0, 1, 2],
+            repeat_func_eof(itertools.count().__next__, 3))
 
 
 @pytest.mark.asyncio
-async def test_stream_from_queue():
-    queue = asyncio.Queue()
-    await queue.put(0)
+async def test_stream_from_queue(event_loop):
+    with event_loop.assert_cleanup_steps(steps=[]):
+        queue = asyncio.Queue()
+        await queue.put(0)
 
-    async def put_next(item):
-        await queue.put(item + 1)
+        async def put_next(item):
+            await queue.put(item + 1)
 
-    await assert_stream(
-        [0, 1, 2],
-        (stream_from_queue(queue) | p_.action(put_next))[:3])
-
-
-@pytest.mark.asyncio
-async def test_stream_from_queue_eof():
-    EOF = object()
-    queue = asyncio.Queue()
-    await queue.put(3)
-
-    async def put_next(item):
-        await queue.put(item - 1 if item > 0 else EOF)
-
-    await assert_stream(
-        [3, 2, 1, 0],
-        stream_from_queue(queue, EOF, use_is=True) | p_.action(put_next))
+        await assert_stream(
+            [0, 1, 2],
+            (stream_from_queue(queue) | p_.action(put_next))[:3])
 
 
 @pytest.mark.asyncio
-async def test_pipe():
-    a, b = pipe()
+async def test_stream_from_queue_eof(event_loop):
+    with event_loop.assert_cleanup_steps(steps=[]):
+        EOF = object()
+        queue = asyncio.Queue()
+        await queue.put(3)
 
-    await a.send("foo")
-    assert await b.recv() == "foo"
+        async def put_next(item):
+            await queue.put(item - 1 if item > 0 else EOF)
+
+        await assert_stream(
+            [3, 2, 1, 0],
+            stream_from_queue(queue, EOF, use_is=True) | p_.action(put_next))
 
 
 @pytest.mark.asyncio
-async def test_actor():
+async def test_pipe(event_loop):
+    with event_loop.assert_cleanup_steps(steps=[]):
+        a, b = pipe()
+
+        await a.send("foo")
+        assert await b.recv() == "foo"
+
+
+@pytest.mark.asyncio
+async def test_actor(event_loop):
     class MyActor(Actor):
         def __init__(self, greeting):
             self.greeting = greeting
@@ -107,27 +118,29 @@ async def test_actor():
                 assert i == len(expected) - 1
             await evt_pipe.send((b'IGNORED',))
 
-    with assert_actor_cleanup(MyActor("hello")) as a:
-        async with a:
-            assert await a.greet("world") == "hello world"
-            await a.agreet("world")
-            assert await a.evt_pipe.recv() == (b'AGREET', "hello world")
+    with event_loop.assert_cleanup_steps(steps=[]):
+        with assert_actor_cleanup(MyActor("hello")) as a:
+            async with a:
+                assert await a.greet("world") == "hello world"
+                await a.agreet("world")
+                assert await a.evt_pipe.recv() == (b'AGREET', "hello world")
 
 
 @pytest.mark.asyncio
-async def test_faulty_actor():
+async def test_faulty_actor(event_loop):
     class FaultyActor(Actor):
         async def run(self, cmd_pipe, evt_pipe):
             pass
 
-    with pytest.raises(ActorException):
-        with assert_actor_cleanup(FaultyActor()) as a:
-            async with a:
-                pass
+    with event_loop.assert_cleanup_steps(steps=[]):
+        with pytest.raises(ActorException):
+            with assert_actor_cleanup(FaultyActor()) as a:
+                async with a:
+                    pass
 
 
 @pytest.mark.asyncio
-async def test_failing_actor():
+async def test_failing_actor(event_loop):
     class MyException(Exception):
         pass
 
@@ -136,14 +149,15 @@ async def test_failing_actor():
             await evt_pipe.send(b'$START')
             raise MyException()
 
-    with pytest.raises(MyException):
-        with assert_actor_cleanup(FailingActor()) as a:
-            async with a:
-                pass
+    with event_loop.assert_cleanup_steps(steps=[]):
+        with pytest.raises(MyException):
+            with assert_actor_cleanup(FailingActor()) as a:
+                async with a:
+                    pass
 
 
 @pytest.mark.asyncio
-async def test_init_failing_actor():
+async def test_init_failing_actor(event_loop):
     class MyException(Exception):
         pass
 
@@ -151,14 +165,15 @@ async def test_init_failing_actor():
         async def run(self, cmd_pipe, evt_pipe):
             raise MyException()
 
-    with pytest.raises(MyException):
-        with assert_actor_cleanup(InitFailingActor()) as a:
-            async with a:
-                pass
+    with event_loop.assert_cleanup_steps(steps=[]):
+        with pytest.raises(MyException):
+            with assert_actor_cleanup(InitFailingActor()) as a:
+                async with a:
+                    pass
 
 
 @pytest.mark.asyncio
-async def test_actor_consume_term():
+async def test_actor_consume_term(event_loop):
     class MyException(Exception):
         pass
 
@@ -166,20 +181,24 @@ async def test_actor_consume_term():
         async def run(self, cmd_pipe, evt_pipe):
             await evt_pipe.send(b'$START')
 
-    with assert_actor_cleanup(FailingActor()) as a:
-        async with a:
-            assert await a.evt_pipe.recv() == b'$TERM'
+    with event_loop.assert_cleanup_steps(steps=[]):
+        with assert_actor_cleanup(FailingActor()) as a:
+            async with a:
+                assert await a.evt_pipe.recv() == b'$TERM'
 
 
 @pytest.mark.asyncio
-async def test_actor_consume_term():
+async def test_actor_receive_after_term(event_loop):
     class AfterTerminationActor(Actor):
         async def run(self, cmd_pipe, evt_pipe):
             await evt_pipe.send(b'$START')
             assert await cmd_pipe.recv() == b'$TERM'
             await evt_pipe.send(b'AFTER_TERM')
 
-    with assert_actor_cleanup(AfterTerminationActor()) as a:
-        async with a:
-            await a.stop(block=False)
-            assert await a.evt_pipe.recv() == b'AFTER_TERM'
+    with event_loop.assert_cleanup_steps(steps=[]):
+        with assert_actor_cleanup(AfterTerminationActor()) as a:
+            async with a:
+                await a.stop(block=False)
+                assert await a.evt_pipe.recv() == b'AFTER_TERM'
+
+        assert event_loop.steps == []

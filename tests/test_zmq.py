@@ -1,10 +1,18 @@
 import pytest
+from hedgehog.utils.test_utils import event_loop
+
+import asyncio
 import time
 import zmq.asyncio
+
 from hedgehog.utils.zmq.pipe import pipe, extended_pipe
 from hedgehog.utils.zmq.actor import Actor, CommandRegistry
 from hedgehog.utils.zmq.async_socket import Socket
 from hedgehog.utils.zmq.timer import Timer
+
+
+# Pytest fixtures
+event_loop
 
 
 class TestPipe(object):
@@ -30,15 +38,18 @@ class TestPipe(object):
 
 class TestAsyncSocket(object):
     @pytest.mark.asyncio
-    async def test_async_socket(self):
-        ctx = zmq.asyncio.Context()
+    async def test_async_socket(self, event_loop):
+        with event_loop.assert_cleanup_steps(steps=[1]):
+            ctx = zmq.asyncio.Context()
 
-        a, b = (Socket(ctx, zmq.PAIR).configure(hwm=1000, linger=0) for _ in range(2))
-        a.bind('inproc://endpoint')
-        b.connect('inproc://endpoint')
+            a, b = (Socket(ctx, zmq.PAIR).configure(hwm=1000, linger=0) for _ in range(2))
+            a.bind('inproc://endpoint')
+            b.connect('inproc://endpoint')
 
-        await a.signal()
-        await b.wait()
+            task = asyncio.ensure_future(b.wait())
+            await asyncio.sleep(1)
+            await a.signal()
+            await task
 
 
 class TestActor(object):
