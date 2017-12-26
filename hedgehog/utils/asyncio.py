@@ -35,6 +35,7 @@ def repeat_func_eof(func, eof, *, interval=0, use_is=False):
 def stream_from_queue(queue, eof=__DEFAULT, *, use_is=False):
     """
     Repeatedly gets an item from the given queue, until an item equal to `eof` (using `==` or `is`) is encountered.
+    If no `eof` is given, the stream does not stop.
     """
     if eof is not __DEFAULT:
         return repeat_func_eof(queue.get, eof, use_is=use_is)
