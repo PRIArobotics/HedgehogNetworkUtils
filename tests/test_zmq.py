@@ -1,5 +1,5 @@
 import pytest
-from hedgehog.utils.test_utils import event_loop
+from hedgehog.utils.test_utils import event_loop, assertTimeout, assertImmediate
 
 import asyncio
 import time
@@ -39,15 +39,15 @@ class TestPipe(object):
 class TestAsyncSocket(object):
     @pytest.mark.asyncio
     async def test_async_socket(self, event_loop):
-        with event_loop.assert_cleanup_steps(steps=[1]):
-            ctx = zmq.asyncio.Context()
+        ctx = zmq.asyncio.Context()
 
-            a, b = (Socket(ctx, zmq.PAIR).configure(hwm=1000, linger=0) for _ in range(2))
-            a.bind('inproc://endpoint')
-            b.connect('inproc://endpoint')
+        a, b = (Socket(ctx, zmq.PAIR).configure(hwm=1000, linger=0) for _ in range(2))
+        a.bind('inproc://endpoint')
+        b.connect('inproc://endpoint')
 
-            task = asyncio.ensure_future(b.wait())
-            await asyncio.sleep(1)
+        task = asyncio.ensure_future(b.wait())
+        await assertTimeout(task, 1, shield=True)
+        with assertImmediate():
             await a.signal()
             await task
 

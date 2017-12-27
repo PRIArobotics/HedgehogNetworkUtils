@@ -60,3 +60,36 @@ def event_loop():
     with loop.assert_cleanup():
         yield loop
     loop.close()
+
+
+async def assertTimeout(fut, timeout, shield=False):
+    """
+    Checks that the given coroutine or future is not fulfilled before a specified amount of time runs out.
+    """
+    if shield:
+        fut = asyncio.shield(fut)
+    try:
+        result = await asyncio.wait_for(fut, timeout)
+    except asyncio.TimeoutError:
+        pass
+    else:
+        assert False, result
+
+
+@contextmanager
+def assertPassed(passed):
+    """
+    A context manager that checks the code executed in its context has taken the exact given amount of time
+    on the event loop.
+    Naturally, exact timing can only work on a test event loop using simulated time.
+    """
+    begin = asyncio.get_event_loop().time()
+    yield
+    end = asyncio.get_event_loop().time()
+    assert end - begin == passed
+
+def assertImmediate():
+    """
+    Alias for assertPassed(0).
+    """
+    return assertPassed(0)
