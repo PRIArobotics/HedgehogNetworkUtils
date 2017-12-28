@@ -33,7 +33,7 @@ def event_loop():
 
         @property
         def time_to_go(self):
-            return self._timers and (self.stuck or not self._ready)
+            return self._timers and (self.stuck or not self._ready) and not self._selector._zmq_poller.poll(0)
 
         def clear(self):
             self.steps = []
