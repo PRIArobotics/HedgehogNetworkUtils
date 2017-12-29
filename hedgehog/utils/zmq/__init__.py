@@ -13,7 +13,7 @@ class Active(object):
         self.stop()
 
     def start(self) -> None:
-        pass
+        pass  # pragma: no cover
 
     def stop(self) -> None:
-        pass
+        pass  # pragma: no cover
