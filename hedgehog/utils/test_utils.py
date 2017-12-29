@@ -6,11 +6,21 @@ from contextlib import contextmanager
 
 @pytest.fixture
 def event_loop():
+    class ZMQTestSelector(zmq.asyncio.ZMQSelector):
+        def select(self, timeout=None):
+            if timeout is not None:
+                # instead of waithing for real seconds,
+                # just deliver no events and let the event loop continue immediately.
+                timeout = 0
+            return super(ZMQTestSelector, self).select(timeout)
+
     class ZMQTimeTrackingTestLoop(zmq.asyncio.ZMQEventLoop, asyncio.test_utils.TestLoop):
         stuck_threshold = 100
 
-        def __init__(self):
-            super().__init__()
+        def __init__(self, selector=None):
+            if selector is None:
+                selector = ZMQTestSelector()
+            super().__init__(selector)
             self.clear()
 
         def _run_once(self):
