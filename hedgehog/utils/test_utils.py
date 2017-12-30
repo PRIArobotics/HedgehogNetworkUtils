@@ -1,26 +1,48 @@
-import asyncio.test_utils
 import pytest
-import zmq.asyncio
+import selectors
+import asyncio.test_utils
 from contextlib import contextmanager
 
 
 @pytest.fixture
 def event_loop():
-    class ZMQTestSelector(zmq.asyncio.ZMQSelector):
-        def select(self, timeout=None):
+    class TestSelector(selectors.BaseSelector):
+        def __init__(self, selector):
+            self._selector = selector
+
+        def __getattr__(self, item):
+            return getattr(self._selector, item)
+
+        # these are the magic and @abstractmethods, the others can be handled by __getattr__
+
+        def register(self, *args, **kwargs):
+            return self._selector.register(*args, **kwargs)
+
+        def unregister(self, *args, **kwargs):
+            return self._selector.unregister(*args, **kwargs)
+
+        def select(self, timeout=None, *args, **kwargs):
             if timeout is not None:
-                # instead of waithing for real seconds,
+                # instead of waiting for real seconds,
                 # just deliver no events and let the event loop continue immediately.
                 timeout = 0
-            return super(ZMQTestSelector, self).select(timeout)
+            return self._selector.select(timeout, *args, **kwargs)
 
-    class ZMQTimeTrackingTestLoop(zmq.asyncio.ZMQEventLoop, asyncio.test_utils.TestLoop):
+        def get_map(self, *args, **kwargs):
+            return self._selector.get_map(*args, **kwargs)
+
+        def __enter__(self):
+            return self._selector.__enter__()
+
+        def __exit__(self, *args):
+            return self._selector.__exit__(*args)
+
+    class SelectorTimeTrackingTestLoop(asyncio.SelectorEventLoop, asyncio.test_utils.TestLoop):
         stuck_threshold = 100
 
         def __init__(self, selector=None):
-            if selector is None:
-                selector = ZMQTestSelector()
-            super().__init__(selector)
+            super(SelectorTimeTrackingTestLoop, self).__init__(selector)
+            self._selector = TestSelector(self._selector)
             self.clear()
 
         def _run_once(self):
@@ -43,7 +65,7 @@ def event_loop():
 
         @property
         def time_to_go(self):
-            return self._timers and (self.stuck or not self._ready) and not self._selector._zmq_poller.poll(0)
+            return self._timers and (self.stuck or not self._ready)
 
         def clear(self):
             self.steps = []
@@ -64,7 +86,7 @@ def event_loop():
                 yield self
                 assert steps == self.steps
 
-    loop = ZMQTimeTrackingTestLoop()
+    loop = SelectorTimeTrackingTestLoop()
     loop.set_debug(True)
     asyncio.set_event_loop(loop)
     with loop.assert_cleanup():
@@ -97,6 +119,7 @@ def assertPassed(passed):
     yield
     end = asyncio.get_event_loop().time()
     assert end - begin == passed
+
 
 def assertImmediate():
     """
