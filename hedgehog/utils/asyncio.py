@@ -1,3 +1,5 @@
+from typing import cast, Any, AsyncIterator, Awaitable, Callable, Tuple, TypeVar, Union
+
 import asyncio
 from aiostream import operator, stream
 
@@ -6,8 +8,11 @@ __all__ = ['repeat_func', 'repeat_func_eof', 'stream_from_queue', 'pipe', 'Actor
 __DEFAULT = object()
 
 
+T = TypeVar('T')
+
+
 @operator
-def repeat_func(func, times=None, *, interval=0):
+def repeat_func(func: Callable[[], Union[T, Awaitable[T]]], times: int=None, *, interval: float=0) -> AsyncIterator[T]:
     """
     Repeats the result of a 0-ary function either indefinitely, or for a defined number of times.
     `times` and `interval` behave exactly like with `aiostream.create.repeat`.
@@ -16,52 +21,54 @@ def repeat_func(func, times=None, *, interval=0):
     to terminate the stream at some point.
     """
     base = stream.repeat.raw((), times, interval=interval)
-    return stream.starmap.raw(base, func)
+    return cast(AsyncIterator[T], stream.starmap.raw(base, func))
 
 
 @operator
-def repeat_func_eof(func, eof, *, interval=0, use_is=False):
+def repeat_func_eof(func: Callable[[], Union[T, Awaitable[T]]], eof: Any, *, interval: float=0, use_is: bool=False) -> AsyncIterator[T]:
     """
     Repeats the result of a 0-ary function until an `eof` item is reached.
     The `eof` item itself is not part of the resulting stream; by setting `use_is` to true,
     an equality check is used for eof.
     `times` and `interval` behave exactly like with `aiostream.create.repeat`.
     """
-    pred = (lambda item: item != eof) if not use_is else (lambda item: item is not eof)
-    base = repeat_func.raw(func, interval=interval)
-    return stream.takewhile.raw(base, pred)
+    pred = (lambda item: item != eof) if not use_is else (lambda item: (item is not eof))
+    base = repeat_func(func, interval=interval)
+    return cast(AsyncIterator[T], stream.takewhile.raw(base, pred))
 
 
-def stream_from_queue(queue, eof=__DEFAULT, *, use_is=False):
+def stream_from_queue(queue: asyncio.Queue, eof: Any=__DEFAULT, *, use_is: bool=False) -> AsyncIterator[Any]:
     """
     Repeatedly gets an item from the given queue, until an item equal to `eof` (using `==` or `is`) is encountered.
     If no `eof` is given, the stream does not stop.
     """
     if eof is not __DEFAULT:
-        return repeat_func_eof(queue.get, eof, use_is=use_is)
+        return cast(AsyncIterator[Any], repeat_func_eof(queue.get, eof, use_is=use_is))
     else:
-        return repeat_func(queue.get)
+        return cast(AsyncIterator[Any], repeat_func(queue.get))
 
 
-def pipe():
+class PipeEnd(object):
+    def __init__(self, r: asyncio.Queue, w: asyncio.Queue) -> None:
+        self._r = r
+        self._w = w
+
+    async def send(self, msg: Any) -> None:
+        await self._w.put(msg)
+
+    async def recv(self)-> Any:
+        return await self._r.get()
+
+
+def pipe() -> Tuple[PipeEnd, PipeEnd]:
     """
     Returns a pair of objects that both support the operations `send` and `recv`
     that transmit arbitrary values between the two objects.
     """
-    class _End(object):
-        def __init__(self, r, w):
-            self._r = r
-            self._w = w
 
-        async def send(self, msg):
-            await self._w.put(msg)
-
-        async def recv(self):
-            return await self._r.get()
-
-    a = asyncio.Queue()
-    b = asyncio.Queue()
-    return _End(a, b), _End(b, a)
+    a = asyncio.Queue()  # type: asyncio.Queue
+    b = asyncio.Queue()  # type: asyncio.Queue
+    return PipeEnd(a, b), PipeEnd(b, a)
 
 
 class Active(object):
@@ -114,18 +121,18 @@ class Actor(Active):
     """
 
     class Task(object):
-        def __init__(self, run):
+        def __init__(self, run: Callable[[PipeEnd, PipeEnd], Awaitable[None]]) -> None:
             self.cmd_pipe, self._cmd_pipe = pipe()
             self.evt_pipe, self._evt_pipe = pipe()
 
             self._run = run
-            self._future = None
-            self._state = None
+            self._future = None  # type: asyncio.Future[None]
+            self._state = None  # type: str
 
-        async def start(self):
+        async def start(self) -> None:
             assert self._state is None
 
-            async def _run():
+            async def _run() -> None:
                 try:
                     await self._run(self._cmd_pipe, self._evt_pipe)
                 finally:
@@ -143,7 +150,7 @@ class Actor(Active):
             if start != b'$START':
                 raise ActorException("run() must send b'$START' to signal actor initialization!")
 
-        async def destroy(self, block=True):
+        async def destroy(self, block: bool=True) -> None:
             assert self._state is not None
 
             if self._future.done():
@@ -161,16 +168,18 @@ class Actor(Active):
             if block and self._state == 'terminated':
                 await self._future
 
-    async def start(self):
+    def __init__(self) -> None:
+        self._task = None  # type: Actor.Task
+
+    async def start(self) -> None:
         self._task = Actor.Task(self.run)
         try:
             await self._task.start()
         except Exception:
             self._task = None
             raise
-        return self
 
-    async def stop(self, block=True):
+    async def stop(self, block: bool=True)-> None:
         try:
             await self._task.destroy(block)
         finally:
@@ -178,12 +187,12 @@ class Actor(Active):
                 self._task = None
 
     @property
-    def cmd_pipe(self):
+    def cmd_pipe(self) -> PipeEnd:
         return self._task.cmd_pipe
 
     @property
-    def evt_pipe(self):
+    def evt_pipe(self) -> PipeEnd:
         return self._task.evt_pipe
 
-    async def run(self, cmd_pipe, evt_pipe):
+    async def run(self, cmd_pipe: PipeEnd, evt_pipe: PipeEnd) -> None:
         raise NotImplementedError()  # pragma: no cover

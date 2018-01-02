@@ -1,3 +1,5 @@
+from typing import Any, Generator, List
+
 import pytest
 import selectors
 import asyncio.test_utils
@@ -7,7 +9,7 @@ from contextlib import contextmanager
 @pytest.fixture
 def event_loop():
     class TestSelector(selectors.BaseSelector):
-        def __init__(self, selector):
+        def __init__(self, selector: selectors.BaseSelector) -> None:
             self._selector = selector
 
         def __getattr__(self, item):
@@ -40,9 +42,9 @@ def event_loop():
     class SelectorTimeTrackingTestLoop(asyncio.SelectorEventLoop, asyncio.test_utils.TestLoop):
         stuck_threshold = 100
 
-        def __init__(self, selector=None):
+        def __init__(self, selector: selectors.BaseSelector=None) -> None:
             super(SelectorTimeTrackingTestLoop, self).__init__(selector)
-            self._selector = TestSelector(self._selector)
+            self._selector = TestSelector(self._selector)  # type: selectors.BaseSelector
             self.clear()
 
         def _run_once(self):
@@ -60,28 +62,28 @@ def event_loop():
                 self.busy_count = 0
 
         @property
-        def stuck(self):
+        def stuck(self) -> bool:
             return self.busy_count > self.stuck_threshold
 
         @property
-        def time_to_go(self):
-            return self._timers and (self.stuck or not self._ready)
+        def time_to_go(self) -> bool:
+            return bool(self._timers) and (self.stuck or not self._ready)
 
-        def clear(self):
-            self.steps = []
+        def clear(self) -> None:
+            self.steps = []  # type: List[float]
             self.open_resources = 0
             self.resources = 0
             self.busy_count = 0
 
         @contextmanager
-        def assert_cleanup(self):
+        def assert_cleanup(self) -> Generator['SelectorTimeTrackingTestLoop', None, None]:
             self.clear()
             yield self
             assert self.open_resources == 0
             self.clear()
 
         @contextmanager
-        def assert_cleanup_steps(self, steps):
+        def assert_cleanup_steps(self, steps: List[float]) -> Generator['SelectorTimeTrackingTestLoop', None, None]:
             with self.assert_cleanup():
                 yield self
                 assert steps == self.steps
@@ -94,7 +96,7 @@ def event_loop():
     loop.close()
 
 
-async def assertTimeout(fut, timeout, shield=False):
+async def assertTimeout(fut: asyncio.Future, timeout: float, shield: bool=False) -> Any:
     """
     Checks that the given coroutine or future is not fulfilled before a specified amount of time runs out.
     """
@@ -109,7 +111,7 @@ async def assertTimeout(fut, timeout, shield=False):
 
 
 @contextmanager
-def assertPassed(passed):
+def assertPassed(passed: float) -> Generator[None, None, None]:
     """
     A context manager that checks the code executed in its context has taken the exact given amount of time
     on the event loop.
@@ -121,8 +123,10 @@ def assertPassed(passed):
     assert end - begin == passed
 
 
-def assertImmediate():
+@contextmanager
+def assertImmediate() -> Generator[None, None, None]:
     """
     Alias for assertPassed(0).
     """
-    return assertPassed(0)
+    with assertPassed(0):
+        yield
