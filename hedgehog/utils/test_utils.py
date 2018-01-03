@@ -1,8 +1,9 @@
 from typing import Any, Generator, List
 
 import pytest
-import selectors
 import asyncio.test_utils
+import selectors
+import zmq.asyncio
 from contextlib import contextmanager
 
 
@@ -94,6 +95,18 @@ def event_loop():
     with loop.assert_cleanup():
         yield loop
     loop.close()
+
+
+@pytest.fixture
+def zmq_ctx():
+    with zmq.Context() as ctx:
+        yield ctx
+
+
+@pytest.fixture
+def zmq_aio_ctx():
+    with zmq.asyncio.Context() as ctx:
+        yield ctx
 
 
 async def assertTimeout(fut: asyncio.Future, timeout: float, shield: bool=False) -> Any:
