@@ -32,7 +32,7 @@ def assert_actor_cleanup(actor):
 
 
 @pytest.mark.asyncio
-async def test_repeat_func(event_loop):
+async def test_repeat_func():
     with assertImmediate():
         await assert_stream(
             [0, 1, 2],
@@ -40,7 +40,7 @@ async def test_repeat_func(event_loop):
 
 
 @pytest.mark.asyncio
-async def test_repeat_func_eof(event_loop):
+async def test_repeat_func_eof():
     with assertImmediate():
         await assert_stream(
             [0, 1, 2],
@@ -48,7 +48,7 @@ async def test_repeat_func_eof(event_loop):
 
 
 @pytest.mark.asyncio
-async def test_stream_from_queue(event_loop):
+async def test_stream_from_queue():
     with assertImmediate():
         queue = asyncio.Queue()
         await queue.put(0)
@@ -62,7 +62,7 @@ async def test_stream_from_queue(event_loop):
 
 
 @pytest.mark.asyncio
-async def test_stream_from_queue_eof(event_loop):
+async def test_stream_from_queue_eof():
     with assertImmediate():
         EOF = object()
         queue = asyncio.Queue()
@@ -77,7 +77,7 @@ async def test_stream_from_queue_eof(event_loop):
 
 
 @pytest.mark.asyncio
-async def test_pipe(event_loop):
+async def test_pipe():
     a, b = pipe()
 
     task = asyncio.ensure_future(b.recv())
@@ -88,9 +88,10 @@ async def test_pipe(event_loop):
 
 
 @pytest.mark.asyncio
-async def test_actor(event_loop):
+async def test_actor():
     class MyActor(Actor):
         def __init__(self, greeting):
+            super(MyActor, self).__init__()
             self.greeting = greeting
 
         async def greet(self, msg):
@@ -129,7 +130,7 @@ async def test_actor(event_loop):
 
 
 @pytest.mark.asyncio
-async def test_faulty_actor(event_loop):
+async def test_faulty_actor():
     class FaultyActor(Actor):
         async def run(self, cmd_pipe, evt_pipe):
             pass
@@ -142,7 +143,7 @@ async def test_faulty_actor(event_loop):
 
 
 @pytest.mark.asyncio
-async def test_failing_actor(event_loop):
+async def test_failing_actor():
     class MyException(Exception):
         pass
 
@@ -159,7 +160,7 @@ async def test_failing_actor(event_loop):
 
 
 @pytest.mark.asyncio
-async def test_init_failing_actor(event_loop):
+async def test_init_failing_actor():
     class MyException(Exception):
         pass
 
@@ -175,7 +176,7 @@ async def test_init_failing_actor(event_loop):
 
 
 @pytest.mark.asyncio
-async def test_actor_consume_term(event_loop):
+async def test_actor_consume_term():
     class FailingActor(Actor):
         async def run(self, cmd_pipe, evt_pipe):
             await evt_pipe.send(b'$START')
@@ -187,7 +188,7 @@ async def test_actor_consume_term(event_loop):
 
 
 @pytest.mark.asyncio
-async def test_actor_receive_after_term(event_loop):
+async def test_actor_receive_after_term():
     class AfterTerminationActor(Actor):
         async def run(self, cmd_pipe, evt_pipe):
             await evt_pipe.send(b'$START')
@@ -199,5 +200,3 @@ async def test_actor_receive_after_term(event_loop):
             async with a:
                 await a.stop(block=False)
                 assert await a.evt_pipe.recv() == b'AFTER_TERM'
-
-        assert event_loop.steps == []

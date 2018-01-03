@@ -38,7 +38,7 @@ class TestPipe(object):
 
 class TestAsyncSocket(object):
     @pytest.mark.asyncio
-    async def test_async_socket(self, event_loop):
+    async def test_async_socket(self):
         ctx = zmq.asyncio.Context()
 
         a, b = (Socket(ctx, zmq.PAIR).configure(hwm=1000, linger=0) for _ in range(2))

@@ -169,6 +169,7 @@ class Actor(Active):
                 await self._future
 
     def __init__(self) -> None:
+        super(Actor, self).__init__()
         self._task = None  # type: Actor.Task
 
     async def start(self) -> None:
