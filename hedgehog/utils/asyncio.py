@@ -75,6 +75,18 @@ class Active(object):
     """
     An Active object is one that can be "started" and "stopped", meaning it will then execute code asynchronously.
     Starting and stopping can be done manually, or by using the object as a context manager, with `async with`.
+
+    An Active object can be awaited to wait for it finishing, either because it was stopped somewhere
+    or because it terminated on its own.
+    To run an active object until it has stopped, the following idiom can be used:
+
+        async with active:
+            # do anything while `active` is running
+            await active
+            # do anything after `active` is done, but before it was cleaned up
+
+    Obviously, unless the active object terminates or is stopped somewhere,
+    this code will not advance past the `await` line.
     """
 
     async def __aenter__(self):
@@ -89,6 +101,9 @@ class Active(object):
 
     async def stop(self) -> None:
         pass  # pragma: no cover
+
+    def __await__(self) -> Any:
+        raise NotImplementedError  # pragma: nocover
 
 
 class ActorException(Exception):
@@ -105,7 +120,7 @@ class Actor(Active):
     An actor is an asynchronous content manager and can be used with `async with`.
     When entering the block or calling `start()`, the actor's `run` method is executed as a task,
     and when exiting or calling `stop()`, the actor is asked to shut down.
-    Calling `stop(block=True)` asks the actor for shutdown without waiting for the shutdown to complete.
+    Calling `stop(block=False)` asks the actor for shutdown without waiting for the shutdown to complete.
     This is useful for actors that produce events during shutdown.
 
     `run` has to conform to a simple contract:
@@ -168,6 +183,9 @@ class Actor(Active):
             if block and self._state == 'terminated':
                 await self._future
 
+        def __await__(self):
+            yield from self._future.__await__()
+
     def __init__(self) -> None:
         super(Actor, self).__init__()
         self._task = None  # type: Actor.Task
@@ -186,6 +204,9 @@ class Actor(Active):
         finally:
             if block:
                 self._task = None
+
+    def __await__(self):
+        yield from self._task.__await__()
 
     @property
     def cmd_pipe(self) -> PipeEnd:

@@ -139,7 +139,7 @@ async def test_faulty_actor():
         with pytest.raises(ActorException):
             with assert_actor_cleanup(FaultyActor()) as a:
                 async with a:
-                    pass
+                    await a
 
 
 @pytest.mark.asyncio
@@ -156,7 +156,7 @@ async def test_failing_actor():
         with pytest.raises(MyException):
             with assert_actor_cleanup(FailingActor()) as a:
                 async with a:
-                    pass
+                    await a
 
 
 @pytest.mark.asyncio
@@ -172,7 +172,7 @@ async def test_init_failing_actor():
         with pytest.raises(MyException):
             with assert_actor_cleanup(InitFailingActor()) as a:
                 async with a:
-                    pass
+                    await a
 
 
 @pytest.mark.asyncio
