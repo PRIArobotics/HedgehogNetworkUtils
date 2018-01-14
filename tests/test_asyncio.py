@@ -188,6 +188,18 @@ async def test_actor_consume_term():
 
 
 @pytest.mark.asyncio
+async def test_actor_stop_early():
+    class FailingActor(Actor):
+        async def run(self, cmd_pipe, evt_pipe):
+            await evt_pipe.send(b'$START')
+
+    with assertImmediate():
+        with assert_actor_cleanup(FailingActor()) as a:
+            async with a:
+                await a.stop()
+
+
+@pytest.mark.asyncio
 async def test_actor_receive_after_term():
     class AfterTerminationActor(Actor):
         async def run(self, cmd_pipe, evt_pipe):
