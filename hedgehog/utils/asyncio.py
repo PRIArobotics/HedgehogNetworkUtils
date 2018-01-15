@@ -71,57 +71,28 @@ def pipe() -> Tuple[PipeEnd, PipeEnd]:
     return PipeEnd(a, b), PipeEnd(b, a)
 
 
-class Active(object):
-    """
-    An Active object is one that can be "started" and "stopped", meaning it will then execute code asynchronously.
-    Starting and stopping can be done manually, or by using the object as a context manager, with `async with`.
-
-    An Active object can be awaited to wait for it finishing, either because it was stopped somewhere
-    or because it terminated on its own.
-    To run an active object until it has stopped, the following idiom can be used:
-
-        async with active:
-            # do anything while `active` is running
-            await active
-            # do anything after `active` is done, but before it was cleaned up
-
-    Obviously, unless the active object terminates or is stopped somewhere,
-    this code will not advance past the `await` line.
-    """
-
-    async def __aenter__(self):
-        await self.start()
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.stop()
-
-    async def start(self) -> None:
-        pass  # pragma: no cover
-
-    async def stop(self) -> None:
-        pass  # pragma: no cover
-
-    def __await__(self) -> Any:
-        raise NotImplementedError  # pragma: nocover
-
-
 class ActorException(Exception):
     pass
 
 
-class Actor(Active):
+class Actor(object):
     """
     An `Actor` encapsulates a task that is executed on an event loop, and two pipes for communicating with that task.
 
     The command pipe is used for communication initiated by the actor's creator, i.e. commands and their results.
     The event pipe is meant for communication initiated by the actor's task.
 
-    An actor is an asynchronous content manager and can be used with `async with`.
-    When entering the block or calling `start()`, the actor's `run` method is executed as a task,
-    and when exiting or calling `stop()`, the actor is asked to shut down.
-    Calling `stop(block=False)` asks the actor for shutdown without waiting for the shutdown to complete.
-    This is useful for actors that produce events during shutdown.
+    An actor is a reusable, non-reentrant asynchronous content manager and can be used with `async with`.
+    When entering the block, the actor's `run` method is executed as a task, and when exiting,
+    the actor is asked to shut down.
+
+    The `stop` method can be used to stop the task before it completed by itself,
+    or before it is stopped by leaving the async context.
+    Calling `stop()` asks the actor for shutdown and waits until the task has terminated,
+    discarding any events that the actor might have produced during shutdown.
+    Calling `stop(block=False)` asks for shutdown without waiting, so that events can be received.
+    `stop` is idempotent regarding terminating the task, and `stop(block=True)` is idempotent regarding its waiting:
+    subsequent calls will do nothing the first call has not already accomplished.
 
     `run` has to conform to a simple contract:
     - As the first message on the event pipe, the binary string `b'$START'` must be sent.
@@ -129,6 +100,13 @@ class Actor(Active):
     - After that, the actor must not send the binary string `b'$TERM'` as an event.
     - When the binary command `b'$TERM'` is received, the run method must eventually terminate.
       It may send additional events to the caller during that time.
+
+    The caller must obey the following contract:
+    - `Actor` is not reentrant, so its context magic methods must not be used when the actor is active.
+    - `Actor` is reusable, so it may be activated multiple times in succession
+    - The methods `stop`, `__await__` and properties `cmd_pipe`, `evt_pipe` depend on the task and
+      may only be called while an `Actor` is active.
+    - The binary string `b'$TERM'` is reserved for the `stop` method and must not be sent as a command to the task.
 
     The binary string `b'$TERM'` will automatically be sent as an event to the caller when `run` exits.
     That means the actor's caller should watch for this to know when the actor task terminates,
@@ -190,20 +168,23 @@ class Actor(Active):
         super(Actor, self).__init__()
         self._task = None  # type: Actor.Task
 
-    async def start(self) -> None:
+    async def __aenter__(self):
         self._task = Actor.Task(self.run)
         try:
             await self._task.start()
+            return self
         except Exception:
             self._task = None
             raise
 
-    async def stop(self, block: bool=True)-> None:
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
         try:
-            await self._task.destroy(block)
+            await self.stop()
         finally:
-            if block:
-                self._task = None
+            self._task = None
+
+    async def stop(self, block: bool=True)-> None:
+        await self._task.destroy(block)
 
     def __await__(self):
         yield from self._task.__await__()
