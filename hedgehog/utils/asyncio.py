@@ -1,4 +1,4 @@
-from typing import cast, Any, AsyncIterator, Awaitable, Callable, Tuple, TypeVar, Union
+from typing import cast, Any, AsyncIterator, Awaitable, Callable, Generic, Optional, Tuple, TypeVar, Union
 
 import asyncio
 from aiostream import operator, stream
@@ -75,7 +75,7 @@ class ActorException(Exception):
     pass
 
 
-class Actor(object):
+class Actor(Generic[T]):
     """
     An `Actor` encapsulates a task that is executed on an event loop, and two pipes for communicating with that task.
 
@@ -85,14 +85,17 @@ class Actor(object):
     An actor is a reusable, non-reentrant asynchronous content manager and can be used with `async with`.
     When entering the block, the actor's `run` method is executed as a task, and when exiting,
     the actor is asked to shut down.
+    The `run` method may return a value that can be retrieved by awaiting the actor,
+    or by stopping it in a blocking manner.
 
     The `stop` method can be used to stop the task before it completed by itself,
     or before it is stopped by leaving the async context.
     Calling `stop()` asks the actor for shutdown and waits until the task has terminated,
-    discarding any events that the actor might have produced during shutdown.
-    Calling `stop(block=False)` asks for shutdown without waiting, so that events can be received.
-    `stop` is idempotent regarding terminating the task, and `stop(block=True)` is idempotent regarding its waiting:
-    subsequent calls will do nothing the first call has not already accomplished.
+    discarding any events that the actor might have produced during shutdown, and returning the actor's result.
+    Calling `stop(block=False)` asks for shutdown without waiting or returning a value, so that events can be received.
+    `stop` is idempotent regarding terminating the task,
+    and `stop(block=True)` is idempotent regarding its waiting and return value:
+    subsequent calls will do nothing the first call has not already accomplished, and return the same value.
 
     `run` has to conform to a simple contract:
     - As the first message on the event pipe, the binary string `b'$START'` must be sent.
@@ -113,21 +116,21 @@ class Actor(object):
     be it by a shutdown request, an error, or regularly.
     """
 
-    class Task(object):
-        def __init__(self, run: Callable[[PipeEnd, PipeEnd], Awaitable[None]]) -> None:
+    class Task(Generic[T]):
+        def __init__(self, run: Callable[[PipeEnd, PipeEnd], Awaitable[T]]) -> None:
             self.cmd_pipe, self._cmd_pipe = pipe()
             self.evt_pipe, self._evt_pipe = pipe()
 
             self._run = run
-            self._future = None  # type: asyncio.Future[None]
+            self._future = None  # type: asyncio.Future[T]
             self._state = None  # type: str
 
         async def start(self) -> None:
             assert self._state is None
 
-            async def _run() -> None:
+            async def _run() -> T:
                 try:
-                    await self._run(self._cmd_pipe, self._evt_pipe)
+                    return await self._run(self._cmd_pipe, self._evt_pipe)
                 finally:
                     await self._evt_pipe.send(b'$TERM')
 
@@ -143,7 +146,7 @@ class Actor(object):
             if start != b'$START':
                 raise ActorException("run() must send b'$START' to signal actor initialization!")
 
-        async def destroy(self, block: bool=True) -> None:
+        async def destroy(self, block: bool=True) -> T:
             assert self._state is not None
 
             if self._future.done():
@@ -159,14 +162,14 @@ class Actor(object):
                 self._state = 'terminated'
 
             if block and self._state == 'terminated':
-                await self._future
+                return await self._future
 
-        def __await__(self):
-            yield from self._future.__await__()
+        def __await__(self) -> T:
+            return (yield from self._future.__await__())
 
     def __init__(self) -> None:
         super(Actor, self).__init__()
-        self._task = None  # type: Actor.Task
+        self._task = None  # type: Actor.Task[T]
 
     async def __aenter__(self):
         self._task = Actor.Task(self.run)
@@ -183,11 +186,11 @@ class Actor(object):
         finally:
             self._task = None
 
-    async def stop(self, block: bool=True)-> None:
-        await self._task.destroy(block)
+    async def stop(self, block: bool=True)-> T:
+        return await self._task.destroy(block)
 
     def __await__(self):
-        yield from self._task.__await__()
+        return (yield from self._task.__await__())
 
     @property
     def cmd_pipe(self) -> PipeEnd:
@@ -197,5 +200,5 @@ class Actor(object):
     def evt_pipe(self) -> PipeEnd:
         return self._task.evt_pipe
 
-    async def run(self, cmd_pipe: PipeEnd, evt_pipe: PipeEnd) -> None:
+    async def run(self, cmd_pipe: PipeEnd, evt_pipe: PipeEnd) -> T:
         raise NotImplementedError()  # pragma: no cover

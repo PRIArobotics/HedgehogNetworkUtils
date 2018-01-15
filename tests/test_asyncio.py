@@ -192,11 +192,12 @@ async def test_actor_stop_early():
     class FailingActor(Actor):
         async def run(self, cmd_pipe, evt_pipe):
             await evt_pipe.send(b'$START')
+            return "foo"
 
     with assertImmediate():
         with assert_actor_cleanup(FailingActor()) as a:
             async with a:
-                await a.stop()
+                assert await a.stop() == "foo"
 
 
 @pytest.mark.asyncio
@@ -206,9 +207,11 @@ async def test_actor_receive_after_term():
             await evt_pipe.send(b'$START')
             assert await cmd_pipe.recv() == b'$TERM'
             await evt_pipe.send(b'AFTER_TERM')
+            return "foo"
 
     with assertImmediate():
         with assert_actor_cleanup(AfterTerminationActor()) as a:
             async with a:
-                await a.stop(block=False)
+                assert await a.stop(block=False) is None
                 assert await a.evt_pipe.recv() == b'AFTER_TERM'
+                assert await a == "foo"
