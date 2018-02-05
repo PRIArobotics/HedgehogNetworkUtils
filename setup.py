@@ -19,7 +19,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='hedgehog-utils',
-    version='0.4.2',
+    version='0.5.0',
     description='Utilities shared between Hedgehog projects',
     long_description=long_description,
     url="https://github.com/PRIArobotics/HedgehogUtils",
