@@ -1,9 +1,8 @@
-import unittest
-
+import pytest
 from hedgehog.utils import coroutine
 
 
-class CoroutineTests(unittest.TestCase):
+class TestCoroutine(object):
     def test_no_coroutine(self):
         def sum(count):
             sum = 0
@@ -14,9 +13,9 @@ class CoroutineTests(unittest.TestCase):
 
         add = sum(2)
         next(add)
-        self.assertEqual(add.send(2), 2)
-        self.assertEqual(add.send(3), 5)
-        with self.assertRaises(StopIteration):
+        assert add.send(2) == 2
+        assert add.send(3) == 5
+        with pytest.raises(StopIteration):
             next(add)
 
     def test_coroutine(self):
@@ -29,7 +28,7 @@ class CoroutineTests(unittest.TestCase):
             yield sum
 
         add = sum(2)
-        self.assertEqual(add(2), 2)
-        self.assertEqual(add(3), 5)
-        with self.assertRaises(StopIteration):
+        assert add(2) == 2
+        assert add(3) == 5
+        with pytest.raises(StopIteration):
             add()

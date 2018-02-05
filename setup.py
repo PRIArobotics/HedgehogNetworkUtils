@@ -19,7 +19,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='hedgehog-utils',
-    version='0.4.2',
+    version='0.5.0',
     description='Utilities shared between Hedgehog projects',
     long_description=long_description,
     url="https://github.com/PRIArobotics/HedgehogUtils",
@@ -46,15 +46,15 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=[],
+    install_requires=['aiostream'],
 
     # You can install these using the following syntax, for example:
     # $ pip install -e .[dev,test]
     extras_require={
-        'dev': ['invoke'],
+        'dev': ['invoke', 'pytest', 'pytest-runner', 'pytest-asyncio', 'pytest-cov'],
         'protobuf': ['protobuf'],
-        'zmq': ['pyzmq'],
-        'discovery': ['pyre', 'pyzmq', 'protobuf'],
+        'zmq': ['pyzmq>=17b'],
+        'discovery': ['pyre', 'pyzmq>=17b', 'protobuf'],
     },
 
     # package_data={

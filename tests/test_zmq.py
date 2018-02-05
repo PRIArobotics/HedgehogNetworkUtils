@@ -1,70 +1,88 @@
-import unittest
+import pytest
+from hedgehog.utils.test_utils import event_loop, zmq_ctx, zmq_aio_ctx, assertTimeout, assertImmediate
+
+import asyncio
 import time
 import zmq
+
 from hedgehog.utils.zmq.pipe import pipe, extended_pipe
 from hedgehog.utils.zmq.actor import Actor, CommandRegistry
+from hedgehog.utils.zmq.async_socket import Socket
 from hedgehog.utils.zmq.timer import Timer
 
 
-class PipeTests(unittest.TestCase):
-    def test_pipe(self):
-        ctx = zmq.Context()
-
-        a, b = pipe(ctx, endpoint='inproc://endpoint')
-
-        a.signal()
-        b.wait()
-
-    def test_extended_pipe(self):
-        ctx = zmq.Context()
-
-        a, b = extended_pipe(ctx, endpoint='inproc://endpoint')
-
-        obj = object()
-        a.push(obj)
-        a.signal()
-        b.wait()
-        self.assertTrue(b.pop() is obj)
+# Pytest fixtures
+event_loop, zmq_ctx, zmq_aio_ctx
 
 
-class ActorTests(unittest.TestCase):
-    def test_actor_termination(self):
+class TestPipe(object):
+    def test_pipe(self, zmq_ctx):
+        a, b = pipe(zmq_ctx, endpoint='inproc://endpoint')
+        with a, b:
+            a.signal()
+            b.wait()
+
+    def test_extended_pipe(self, zmq_ctx):
+        a, b = extended_pipe(zmq_ctx, endpoint='inproc://endpoint')
+        with a, b:
+            obj = object()
+            a.push(obj)
+            a.signal()
+            b.wait()
+            assert b.pop() is obj
+
+
+class TestAsyncSocket(object):
+    @pytest.mark.asyncio
+    async def test_async_socket(self, zmq_aio_ctx):
+        a, b = (Socket(zmq_aio_ctx, zmq.PAIR).configure(hwm=1000, linger=0) for _ in range(2))
+        with a, b:
+            a.bind('inproc://endpoint')
+            b.connect('inproc://endpoint')
+
+            task = asyncio.ensure_future(b.wait())
+            await assertTimeout(task, 1, shield=True)
+            with assertImmediate():
+                await a.signal()
+                await task
+
+
+@pytest.mark.skip
+class TestActor(object):
+    def test_actor_termination(self, zmq_ctx):
         def task(ctx, cmd_pipe, evt_pipe):
             evt_pipe.signal()
 
             cmd_pipe.recv_expect(b'do')
 
-        ctx = zmq.Context()
-        actor = Actor(ctx, task)
+        actor = Actor(zmq_ctx, task)
 
         actor.cmd_pipe.send(b'do')
 
         # await the actor terminating
         actor.evt_pipe.recv_expect(b'$TERM')
 
-    def test_actor_destruction(self):
+    def test_actor_destruction(self, zmq_ctx):
         def task(ctx, cmd_pipe, evt_pipe):
             evt_pipe.signal()
             cmd_pipe.recv_expect(b'do')
             cmd_pipe.recv_expect(b'$TERM')
 
-        ctx = zmq.Context()
-        actor = Actor(ctx, task)
+        actor = Actor(zmq_ctx, task)
 
         actor.cmd_pipe.send(b'do')
 
         # this triggers and awaits actor termination
         actor.destroy()
 
-    def test_actor_destruction_event(self):
+    def test_actor_destruction_event(self, zmq_ctx):
         def task(ctx, cmd_pipe, evt_pipe):
             evt_pipe.signal()
             cmd_pipe.recv_expect(b'$TERM')
             evt_pipe.send(b'event')
             evt_pipe.recv_expect(b'reply')
 
-        ctx = zmq.Context()
-        actor = Actor(ctx, task)
+        actor = Actor(zmq_ctx, task)
 
         # this triggers actor termination
         actor.destroy(block=False)
@@ -92,10 +110,9 @@ class ActorTests(unittest.TestCase):
         registry.handle((b'test', b'payload'))
 
 
-class TimerTests(unittest.TestCase):
-    def test_order(self):
-        ctx = zmq.Context()
-        with Timer(ctx) as timer:
+class TestTimer(object):
+    def test_order(self, zmq_ctx):
+        with Timer(zmq_ctx) as timer:
             a = timer.register(0.010, "a")
             time.sleep(0.015)  # 0: a, 10: a; time=15
             b = timer.register(0.010, "b")
@@ -112,14 +129,13 @@ class TimerTests(unittest.TestCase):
             while events & zmq.POLLIN:
                 timer.evt_pipe.recv_expect(b'TIMER')
                 then, t = timer.evt_pipe.pop()
-                self.assertIs(t, timers.pop(0))
+                assert t is timers.pop(0)
                 events = timer.evt_pipe.poll(0)
-            self.assertEqual(len(timers), 0)
+            assert len(timers) == 0
 
-    @unittest.skip
-    def test_load(self):
-        ctx = zmq.Context()
-        with Timer(ctx) as timer:
+    @pytest.mark.skip
+    def test_load(self, zmq_ctx):
+        with Timer(zmq_ctx) as timer:
             ts = [timer.register(0.01, id) for id in range(100)]
             time.sleep(0.015)
             for t in ts:
@@ -133,9 +149,8 @@ class TimerTests(unittest.TestCase):
                 then, t = timer.evt_pipe.pop()
                 timers[t.aux] += 1
                 events = timer.evt_pipe.poll(0)
-            self.assertEqual(timers, [2 for t in ts])
+            assert timers == [2 for t in ts]
 
-    def test_terminate(self):
-        ctx = zmq.Context()
-        with Timer(ctx) as timer:
+    def test_terminate(self, zmq_ctx):
+        with Timer(zmq_ctx) as timer:
             timer.register(0.1)
