@@ -53,8 +53,8 @@ setup(
     extras_require={
         'dev': ['invoke', 'pytest', 'pytest-runner', 'pytest-asyncio', 'pytest-cov'],
         'protobuf': ['protobuf'],
-        'zmq': ['pyzmq'],
-        'discovery': ['pyre', 'pyzmq', 'protobuf'],
+        'zmq': ['pyzmq>=17b'],
+        'discovery': ['pyre', 'pyzmq>=17b', 'protobuf'],
     },
 
     # package_data={
