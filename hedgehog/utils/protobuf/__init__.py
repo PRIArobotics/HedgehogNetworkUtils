@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Iterable, Type, TypeVar
+from typing import cast, Callable, Dict, Iterable, Type, TypeVar
 
 from collections import namedtuple
 
@@ -8,13 +8,14 @@ from google.protobuf.message import Message as ProtoMessage
 MessageMeta = namedtuple('MessageMeta', ('discriminator', 'proto_class', 'fields'))
 
 
-def message(proto_class: Type[ProtoMessage], discriminator: str, fields: Iterable[str]=None):
+def message(proto_class: Type[ProtoMessage], discriminator: str, fields: Iterable[str]=None)\
+        -> Callable[[Type['Message']], Type['Message']]:
     if fields is None:
         fields = tuple(field.name for field in proto_class.DESCRIPTOR.fields)
 
     meta = MessageMeta(discriminator, proto_class, fields)
 
-    def decorator(message_class: Type[Message]):
+    def decorator(message_class: Type[Message]) -> Type[Message]:
         message_class.meta = meta
         return message_class
 
@@ -26,18 +27,20 @@ class ContainerMessage(object):
         self.registry = {}  # type: Dict[str, Callable[[ProtoMessage], Message]]
         self.proto_class = proto_class
 
-    def message(self, proto_class: Type[ProtoMessage], discriminator: str, fields: Iterable[str]=None):
+    def message(self, proto_class: Type[ProtoMessage], discriminator: str, fields: Iterable[str]=None)\
+            -> Callable[[Type['Message']], Type['Message']]:
         message_decorator = message(proto_class, discriminator, fields)
         parser_decorator = self.parser(discriminator)
 
-        def decorator(message_class: Type[SimpleMessageMixin]):
+        def decorator(message_class: Type[Message]) -> Type[Message]:
             message_class = message_decorator(message_class)
-            parser_decorator(message_class._parse)
+            parser_decorator(cast(SimpleMessageMixin, message_class)._parse)
             return message_class
         return decorator
 
-    def parser(self, discriminator: str):
-        def decorator(parse_fn: Callable[[ProtoMessage], Message]):
+    def parser(self, discriminator: str)\
+            -> Callable[[Callable[[ProtoMessage], 'Message']], Callable[[ProtoMessage], 'Message']]:
+        def decorator(parse_fn: Callable[[ProtoMessage], Message]) -> Callable[[ProtoMessage], Message]:
             self.registry[discriminator] = parse_fn
             return parse_fn
         return decorator
@@ -59,7 +62,7 @@ class Message(object):
     meta = None  # type: MessageMeta
 
     def _serialize(self, msg: ProtoMessage) -> None:
-        raise NotImplementedError
+        raise NotImplementedError()  # pragma: no cover
 
     def serialize(self, msg: ProtoMessage=None) -> bytes:
         msg = msg or self.meta.proto_class()
@@ -83,10 +86,10 @@ class Message(object):
 class SimpleMessageMixin(object):
     @classmethod
     def _parse(cls, msg: ProtoMessage) -> Message:
-        raise NotImplementedError
+        raise NotImplementedError()  # pragma: no cover
 
     @classmethod
-    def parse(cls, data: bytes):
-        msg = cls.meta.proto_class()
+    def parse(cls, data: bytes) -> Message:
+        msg = cast(Message, cls).meta.proto_class()
         msg.ParseFromString(data)
         return cls._parse(msg)

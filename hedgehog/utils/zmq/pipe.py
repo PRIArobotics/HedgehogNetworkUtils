@@ -23,7 +23,7 @@ def __pipe(ctx: zmq.Context, endpoint: str=None, hwm: int=1000, socket: Type[T]=
             try:
                 frontend.bind(endpoint)
                 backend.connect(endpoint)
-            except zmq.error.ZMQError:
+            except zmq.error.ZMQError:  # pragma: no cover
                 pass
             else:
                 return frontend, backend

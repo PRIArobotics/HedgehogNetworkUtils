@@ -1,6 +1,13 @@
+import pytest
+from hedgehog.utils.test_utils import zmq_ctx
+
 import zmq
 from hedgehog.utils import discovery
 from hedgehog.utils.discovery.service_node import ServiceNode, endpoint_to_port
+
+
+# Pytest fixtures
+zmq_ctx
 
 
 class TestDiscovery(object):
@@ -18,11 +25,9 @@ class TestDiscovery(object):
         port = endpoint_to_port(b'tcp://127.0.0.1:5555')
         assert port == 5555
 
-    def test_service_node(self):
-        ctx = zmq.Context.instance()
-
+    def test_service_node(self, zmq_ctx):
         SERVICE = 'hedgehog_server'
-        node1, node2 = nodes = [ServiceNode(ctx, "Node {}".format(i)) for i in range(2)]
+        node1, node2 = nodes = [ServiceNode(zmq_ctx, "Node {}".format(i)) for i in range(2)]
 
         def other(node):
             return node1 if node is node2 else node2
@@ -97,12 +102,10 @@ class TestDiscovery(object):
                 {peer.name: (peer.uuid.bytes, services) for peer, services in [(node1, {})]}
             )
 
-    def test_pyre(self):
+    def test_pyre(self, zmq_ctx):
         from pyre.pyre import Pyre
 
-        ctx = zmq.Context()
-
-        node1, node2 = nodes = [Pyre("Node {}".format(i), ctx) for i in range(2)]
+        node1, node2 = nodes = [Pyre("Node {}".format(i), zmq_ctx) for i in range(2)]
 
         def other(node):
             return node1 if node is node2 else node2
@@ -147,13 +150,10 @@ class TestDiscovery(object):
             for node in nodes:
                 node.stop()
 
-    def test_node(self):
-        from uuid import UUID
+    def test_node(self, zmq_ctx):
         from hedgehog.utils.discovery.node import Node
 
-        ctx = zmq.Context()
-
-        node1, node2 = nodes = [Node(ctx, "Node {}".format(i)) for i in range(2)]
+        node1, node2 = nodes = [Node(zmq_ctx, "Node {}".format(i)) for i in range(2)]
 
         def other(node):
             return node1 if node is node2 else node2
