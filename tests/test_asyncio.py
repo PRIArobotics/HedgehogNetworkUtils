@@ -88,6 +88,24 @@ async def test_pipe():
 
 
 @pytest.mark.asyncio
+async def test_repeat_func_eof_task():
+    a, b = pipe()
+
+    async def run():
+        async with stream.enumerate(repeat_func_eof(b.recv, 10)).stream() as streamer:
+            i = -1
+            async for i, msg in streamer:
+                assert msg == i
+            assert i == 9
+
+    with assertImmediate():
+        task = asyncio.ensure_future(run())
+        for i in range(11):
+            await a.send(i)
+        await task
+
+
+@pytest.mark.asyncio
 async def test_actor():
     class MyActor(Actor):
         def __init__(self, greeting):
