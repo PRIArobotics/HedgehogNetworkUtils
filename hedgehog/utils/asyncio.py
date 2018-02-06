@@ -21,7 +21,7 @@ def repeat_func(func: Callable[[], Union[T, Awaitable[T]]], times: int=None, *, 
     to terminate the stream at some point.
     """
     base = stream.repeat.raw((), times, interval=interval)
-    return cast(AsyncIterator[T], stream.starmap.raw(base, func))
+    return cast(AsyncIterator[T], stream.starmap.raw(base, func, task_limit=1))
 
 
 @operator
@@ -29,11 +29,11 @@ def repeat_func_eof(func: Callable[[], Union[T, Awaitable[T]]], eof: Any, *, int
     """
     Repeats the result of a 0-ary function until an `eof` item is reached.
     The `eof` item itself is not part of the resulting stream; by setting `use_is` to true,
-    an equality check is used for eof.
+    eof is checked by identity rather than equality.
     `times` and `interval` behave exactly like with `aiostream.create.repeat`.
     """
     pred = (lambda item: item != eof) if not use_is else (lambda item: (item is not eof))
-    base = repeat_func(func, interval=interval)
+    base = repeat_func.raw(func, interval=interval)
     return cast(AsyncIterator[T], stream.takewhile.raw(base, pred))
 
 
