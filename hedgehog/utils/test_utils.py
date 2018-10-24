@@ -1,7 +1,7 @@
 from typing import Any, Generator, List
 
 import pytest
-import asyncio.test_utils
+import asyncio
 import selectors
 import zmq.asyncio
 from contextlib import contextmanager
@@ -10,7 +10,8 @@ from contextlib import contextmanager
 @pytest.fixture
 def event_loop():
     class TestSelector(selectors.BaseSelector):
-        def __init__(self, selector: selectors.BaseSelector) -> None:
+        def __init__(self, loop: 'SelectorTimeTrackingTestLoop', selector: selectors.BaseSelector) -> None:
+            self._loop = loop
             self._selector = selector
 
         def __getattr__(self, item):
@@ -28,6 +29,7 @@ def event_loop():
             if timeout is not None:
                 # instead of waiting for real seconds,
                 # just deliver no events and let the event loop continue immediately.
+                self._loop.advance_time(timeout)
                 timeout = 0
             return self._selector.select(timeout, *args, **kwargs)
 
@@ -40,35 +42,21 @@ def event_loop():
         def __exit__(self, *args):
             return self._selector.__exit__(*args)
 
-    class SelectorTimeTrackingTestLoop(asyncio.SelectorEventLoop, asyncio.test_utils.TestLoop):
+    class SelectorTimeTrackingTestLoop(asyncio.SelectorEventLoop):
         stuck_threshold = 100
 
         def __init__(self, selector: selectors.BaseSelector=None) -> None:
             super(SelectorTimeTrackingTestLoop, self).__init__(selector)
-            self._selector = TestSelector(self._selector)  # type: selectors.BaseSelector
+            self._selector = TestSelector(self, self._selector)  # type: selectors.BaseSelector
+            self._time = 0
             self.clear()
 
-        def _run_once(self):
-            super(asyncio.test_utils.TestLoop, self)._run_once()
-            # Update internals
-            self.busy_count += 1
-            self._timers = sorted(
-                when for when in self._timers if when > self.time())
-            # Time advance
-            if self.time_to_go:
-                when = self._timers.pop(0)
-                step = when - self.time()
-                self.steps.append(step)
-                self.advance_time(step)
-                self.busy_count = 0
+        def time(self):
+            return self._time
 
-        @property
-        def stuck(self) -> bool:
-            return self.busy_count > self.stuck_threshold
-
-        @property
-        def time_to_go(self) -> bool:
-            return bool(self._timers) and (self.stuck or not self._ready)
+        def advance_time(self, timeout):
+            self._time += timeout
+            self.steps.append(timeout)
 
         def clear(self) -> None:
             self.steps = []  # type: List[float]
