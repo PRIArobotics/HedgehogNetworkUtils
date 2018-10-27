@@ -3,6 +3,14 @@ from .protobuf_tests.proto import test_pb2
 
 
 class TestProtobuf(object):
+    def test_message_equals(self):
+        assert protobuf_tests.SimpleTest(1) == protobuf_tests.SimpleTest(1)
+        assert protobuf_tests.DefaultTest(1) != protobuf_tests.AlternativeTest(1)
+        assert protobuf_tests.SimpleTest(1) != protobuf_tests.SimpleTest(2)
+
+    def test_message_repr(self):
+        assert repr(protobuf_tests.SimpleTest(1)) == 'SimpleTest(field=1)'
+
     def test_serialize_packed_message(self):
         msg = protobuf_tests.DefaultTest(1)
         proto = protobuf_tests.Msg1.serialize(msg)
