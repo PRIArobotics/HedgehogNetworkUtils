@@ -9,45 +9,45 @@ from contextlib import contextmanager
 
 @pytest.fixture
 def event_loop():
-    class TestSelector(selectors.BaseSelector):
-        def __init__(self, loop: 'SelectorTimeTrackingTestLoop', selector: selectors.BaseSelector) -> None:
-            self._loop = loop
-            self._selector = selector
+    class SelectorTimeTrackingTestLoop(asyncio.SelectorEventLoop):  # type: ignore
+        class TestSelector(selectors.BaseSelector):
+            def __init__(self, loop: 'SelectorTimeTrackingTestLoop', selector: selectors.BaseSelector) -> None:
+                self._loop = loop
+                self._selector = selector
 
-        def __getattr__(self, item):
-            return getattr(self._selector, item)
+            def __getattr__(self, item):
+                return getattr(self._selector, item)
 
-        # these are the magic and @abstractmethods, the others can be handled by __getattr__
+            # these are the magic and @abstractmethods, the others can be handled by __getattr__
 
-        def register(self, *args, **kwargs):
-            return self._selector.register(*args, **kwargs)
+            def register(self, *args, **kwargs):
+                return self._selector.register(*args, **kwargs)
 
-        def unregister(self, *args, **kwargs):
-            return self._selector.unregister(*args, **kwargs)
+            def unregister(self, *args, **kwargs):
+                return self._selector.unregister(*args, **kwargs)
 
-        def select(self, timeout=None, *args, **kwargs):
-            if timeout is not None:
-                # instead of waiting for real seconds,
-                # just deliver no events and let the event loop continue immediately.
-                self._loop.advance_time(timeout)
-                timeout = 0
-            return self._selector.select(timeout, *args, **kwargs)
+            def select(self, timeout=None, *args, **kwargs):
+                if timeout is not None:
+                    # instead of waiting for real seconds,
+                    # just deliver no events and let the event loop continue immediately.
+                    self._loop.advance_time(timeout)
+                    timeout = 0
+                return self._selector.select(timeout, *args, **kwargs)
 
-        def get_map(self, *args, **kwargs):
-            return self._selector.get_map(*args, **kwargs)
+            def get_map(self, *args, **kwargs):
+                return self._selector.get_map(*args, **kwargs)
 
-        def __enter__(self):
-            return self._selector.__enter__()
+            def __enter__(self):
+                return self._selector.__enter__()
 
-        def __exit__(self, *args):
-            return self._selector.__exit__(*args)
+            def __exit__(self, *args):
+                return self._selector.__exit__(*args)
 
-    class SelectorTimeTrackingTestLoop(asyncio.SelectorEventLoop):
         stuck_threshold = 100
 
         def __init__(self, selector: selectors.BaseSelector=None) -> None:
             super(SelectorTimeTrackingTestLoop, self).__init__(selector)
-            self._selector = TestSelector(self, self._selector)  # type: selectors.BaseSelector
+            self._selector = SelectorTimeTrackingTestLoop.TestSelector(self, self._selector)  # type: selectors.BaseSelector
             self._time = 0
             self.clear()
 
