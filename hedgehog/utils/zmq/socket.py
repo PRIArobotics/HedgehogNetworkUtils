@@ -4,6 +4,8 @@ import zmq
 
 from .. import expect, expect_all
 
+__all__ = ['Socket', 'Fileno', 'SocketLike']
+
 
 class Socket(zmq.Socket):
     """

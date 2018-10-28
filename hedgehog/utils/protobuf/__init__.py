@@ -1,9 +1,11 @@
 from typing import cast, Callable, Dict, Iterable, Type, TypeVar
+from abc import abstractmethod
 
 from dataclasses import dataclass
 
 from google.protobuf.message import Message as ProtoMessage
 
+__all__ = ['message', 'ContainerMessage', 'Message', 'SimpleMessageMixin']
 
 ParseFn = Callable[[ProtoMessage], 'Message']
 T = TypeVar('T')
@@ -14,7 +16,7 @@ SimpleDecorator = Callable[[T], T]
 class message:
     proto_class: Type[ProtoMessage]
     discriminator: str
-    fields: Iterable[str] = None
+    fields: Iterable[str] = None  # type: ignore
 
     def __post_init__(self):
         if self.fields is None:
@@ -26,14 +28,14 @@ class message:
         return message_class
 
 
-class ContainerMessage(object):
+class ContainerMessage:
     def __init__(self, proto_class: Type[ProtoMessage]) -> None:
         self.parse_fns = {}  # type: Dict[str, ParseFn]
         self.proto_class = proto_class
 
     def message(self, proto_class: Type[ProtoMessage], discriminator: str, fields: Iterable[str]=None)\
             -> SimpleDecorator[Type['Message']]:
-        message_decorator = message(proto_class, discriminator, fields)
+        message_decorator = message(proto_class, discriminator, fields)  # type: ignore
         parser_decorator = self.parser(discriminator)
 
         def decorator(message_class: Type[Message]) -> Type[Message]:
@@ -61,11 +63,12 @@ class ContainerMessage(object):
         return msg.SerializeToString()
 
 
-class Message(object):
+class Message:
     meta = None  # type: message
 
+    @abstractmethod
     def _serialize(self, msg: ProtoMessage) -> None:
-        raise NotImplementedError()  # pragma: no cover
+        raise NotImplemented  # pragma: no cover
 
     def serialize(self, msg: ProtoMessage=None) -> bytes:
         msg = msg or self.meta.proto_class()
@@ -73,10 +76,11 @@ class Message(object):
         return msg.SerializeToString()
 
 
-class SimpleMessageMixin(object):
+class SimpleMessageMixin:
     @classmethod
+    @abstractmethod
     def _parse(cls, msg: ProtoMessage) -> Message:
-        raise NotImplementedError()  # pragma: no cover
+        raise NotImplemented  # pragma: no cover
 
     @classmethod
     def parse(cls, data: bytes) -> Message:

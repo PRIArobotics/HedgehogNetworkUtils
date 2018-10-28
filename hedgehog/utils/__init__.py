@@ -1,11 +1,19 @@
 from itertools import zip_longest
 
+__all__ = ['expect', 'expect_all', 'coroutine']
+
 
 def expect(a, b):
+    """\
+    Asserts that two values are the same.
+    """
     assert a == b
 
 
 def expect_all(a, b):
+    """\
+    Asserts that two iterables contain the same values.
+    """
     assert all(_a == _b for _a, _b in zip_longest(a, b))
 
 
