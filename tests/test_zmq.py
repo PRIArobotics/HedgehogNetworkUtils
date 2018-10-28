@@ -25,6 +25,12 @@ class TestAsyncSocket(object):
                 await a.signal()
                 await task
 
+            task = asyncio.ensure_future(b.recv_multipart_expect((b'foo', b'bar')))
+            await assertTimeout(task, 1, shield=True)
+            with assertImmediate():
+                await a.send_multipart((b'foo', b'bar'))
+                await task
+
 
 class TestSocket(object):
     def test_socket(self, zmq_ctx):
@@ -43,3 +49,9 @@ class TestSocket(object):
             a.signal()
             assert poller.poll(0.01) == [(b, zmq.POLLIN)]
             b.wait()
+
+            assert poller.poll(0.01) == []
+
+            a.send_multipart((b'foo', b'bar'))
+            assert poller.poll(0.01) == [(b, zmq.POLLIN)]
+            b.recv_multipart_expect((b'foo', b'bar'))

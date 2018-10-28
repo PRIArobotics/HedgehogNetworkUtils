@@ -68,7 +68,7 @@ class Message:
 
     @abstractmethod
     def _serialize(self, msg: ProtoMessage) -> None:
-        raise NotImplemented  # pragma: no cover
+        raise NotImplemented
 
     def serialize(self, msg: ProtoMessage=None) -> bytes:
         msg = msg or self.meta.proto_class()
@@ -80,7 +80,7 @@ class SimpleMessageMixin:
     @classmethod
     @abstractmethod
     def _parse(cls, msg: ProtoMessage) -> Message:
-        raise NotImplemented  # pragma: no cover
+        raise NotImplemented
 
     @classmethod
     def parse(cls, data: bytes) -> Message:
