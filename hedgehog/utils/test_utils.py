@@ -2,6 +2,7 @@ from typing import Any, Generator, List
 
 import pytest
 import asyncio
+import logging
 import selectors
 import zmq.asyncio
 from contextlib import contextmanager
@@ -96,6 +97,23 @@ def zmq_ctx():
 def zmq_aio_ctx():
     with zmq.asyncio.Context() as ctx:
         yield ctx
+
+
+@pytest.fixture
+def check_caplog(caplog):
+    class CheckCaplog:
+        level = logging.WARNING
+        expected = set()
+
+    check = CheckCaplog()
+    try:
+        yield check
+    finally:
+        records = [record for record in caplog.get_records('call')
+                   if record.levelno >= check.level and record not in check.expected]
+        if records:
+            record_strs = "\n".join(f"    {record}" for record in records)
+            pytest.fail(f"Unexpected log entries >= warning:\n{record_strs}")
 
 
 async def assertTimeout(fut: asyncio.Future, timeout: float, shield: bool=False) -> Any:
