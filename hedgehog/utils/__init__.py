@@ -1,6 +1,7 @@
+from typing import Callable, Dict, TypeVar
 from itertools import zip_longest
 
-__all__ = ['expect', 'expect_all', 'coroutine']
+__all__ = ['expect', 'expect_all', 'coroutine', 'SimpleDecorator', 'Registry']
 
 
 def expect(a, b):
@@ -100,3 +101,18 @@ def coroutine(func):
         next(generator)
         return lambda *args: generator.send(args)
     return decorator
+
+
+T = TypeVar('T')
+SimpleDecorator = Callable[[T], T]
+
+KT = TypeVar('KT')
+VT = TypeVar('VT')
+
+
+class Registry(Dict[KT, VT]):
+    def register(self, key: KT) -> SimpleDecorator[VT]:
+        def decorator(value: VT) -> VT:
+            self[key] = value
+            return value
+        return decorator

@@ -5,11 +5,11 @@ from dataclasses import dataclass
 
 from google.protobuf.message import Message as ProtoMessage
 
+from hedgehog.utils import SimpleDecorator, Registry
+
 __all__ = ['message', 'ContainerMessage', 'Message', 'SimpleMessageMixin']
 
 ParseFn = Callable[[ProtoMessage], 'Message']
-T = TypeVar('T')
-SimpleDecorator = Callable[[T], T]
 
 
 @dataclass(frozen=True)
@@ -30,7 +30,7 @@ class message:
 
 class ContainerMessage:
     def __init__(self, proto_class: Type[ProtoMessage]) -> None:
-        self.parse_fns = {}  # type: Dict[str, ParseFn]
+        self.parse_fns = Registry[str, ParseFn]()
         self.proto_class = proto_class
 
     def message(self, proto_class: Type[ProtoMessage], discriminator: str, fields: Iterable[str]=None)\
@@ -45,10 +45,7 @@ class ContainerMessage:
         return decorator
 
     def parser(self, discriminator: str) -> SimpleDecorator[ParseFn]:
-        def decorator(parse_fn: ParseFn) -> ParseFn:
-            self.parse_fns[discriminator] = parse_fn
-            return parse_fn
-        return decorator
+        return self.parse_fns.register(discriminator)
 
     def parse(self, data: bytes) -> 'Message':
         msg = self.proto_class()
