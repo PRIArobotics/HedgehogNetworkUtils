@@ -20,6 +20,7 @@ class TestProtobuf(object):
         assert proto == expected.SerializeToString()
 
         msg = protobuf_tests.SimpleTest(1)
+        assert msg.class_field == 'class_field_value'
         proto = protobuf_tests.Msg1.serialize(msg)
 
         expected = test_pb2.TestMessage1()
@@ -48,6 +49,7 @@ class TestProtobuf(object):
 
         expected = protobuf_tests.SimpleTest(1)
         assert msg == expected
+        assert msg.class_field == 'class_field_value'
 
     def test_serialize_simple_message(self):
         msg = protobuf_tests.DefaultTest(1)
@@ -66,6 +68,7 @@ class TestProtobuf(object):
         assert proto == expected.SerializeToString()
 
         msg = protobuf_tests.SimpleTest(1)
+        assert msg.class_field == 'class_field_value'
         proto = msg.serialize()
 
         expected = test_pb2.SimpleTest()
@@ -94,3 +97,4 @@ class TestProtobuf(object):
 
         expected = protobuf_tests.SimpleTest(1)
         assert msg == expected
+        assert msg.class_field == 'class_field_value'

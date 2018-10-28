@@ -51,6 +51,8 @@ def parse_test(data: bytes) -> Union[DefaultTest, AlternativeTest]:
 @Msg2.message(test_pb2.SimpleTest, 'simple_test')
 @dataclass(frozen=True)
 class SimpleTest(Message, SimpleMessageMixin):
+    class_field = 'class_field_value'
+
     field: int
 
     @classmethod
