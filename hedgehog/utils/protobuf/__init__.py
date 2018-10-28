@@ -1,8 +1,13 @@
-from typing import cast, Callable, Dict, Iterable, Type
+from typing import cast, Callable, Dict, Iterable, Type, TypeVar
 
 from dataclasses import dataclass
 
 from google.protobuf.message import Message as ProtoMessage
+
+
+ParseFn = Callable[[ProtoMessage], 'Message']
+T = TypeVar('T')
+SimpleDecorator = Callable[[T], T]
 
 
 @dataclass(frozen=True)
@@ -23,11 +28,11 @@ class message:
 
 class ContainerMessage(object):
     def __init__(self, proto_class: Type[ProtoMessage]) -> None:
-        self.registry = {}  # type: Dict[str, Callable[[ProtoMessage], Message]]
+        self.parse_fns = {}  # type: Dict[str, ParseFn]
         self.proto_class = proto_class
 
     def message(self, proto_class: Type[ProtoMessage], discriminator: str, fields: Iterable[str]=None)\
-            -> Callable[[Type['Message']], Type['Message']]:
+            -> SimpleDecorator[Type['Message']]:
         message_decorator = message(proto_class, discriminator, fields)
         parser_decorator = self.parser(discriminator)
 
@@ -37,18 +42,17 @@ class ContainerMessage(object):
             return message_class
         return decorator
 
-    def parser(self, discriminator: str)\
-            -> Callable[[Callable[[ProtoMessage], 'Message']], Callable[[ProtoMessage], 'Message']]:
-        def decorator(parse_fn: Callable[[ProtoMessage], Message]) -> Callable[[ProtoMessage], Message]:
-            self.registry[discriminator] = parse_fn
+    def parser(self, discriminator: str) -> SimpleDecorator[ParseFn]:
+        def decorator(parse_fn: ParseFn) -> ParseFn:
+            self.parse_fns[discriminator] = parse_fn
             return parse_fn
         return decorator
 
     def parse(self, data: bytes) -> 'Message':
         msg = self.proto_class()
         msg.ParseFromString(data)
-        discriminator = msg.WhichOneof('payload')
-        parse_fn = self.registry[discriminator]
+        discriminator = cast(str, msg.WhichOneof('payload'))
+        parse_fn = self.parse_fns[discriminator]
         return parse_fn(getattr(msg, discriminator))
 
     def serialize(self, instance: 'Message') -> bytes:
@@ -58,7 +62,7 @@ class ContainerMessage(object):
 
 
 class Message(object):
-    meta = None  # type: MessageMeta
+    meta = None  # type: message
 
     def _serialize(self, msg: ProtoMessage) -> None:
         raise NotImplementedError()  # pragma: no cover
