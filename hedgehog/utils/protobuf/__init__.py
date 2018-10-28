@@ -72,19 +72,6 @@ class Message(object):
         self._serialize(msg)
         return msg.SerializeToString()
 
-    def __eq__(self, other):
-        if type(other) != type(self):
-            return False
-        for field in self.meta.fields:
-            if getattr(self, field) != getattr(other, field):
-                return False
-        return True
-
-    def __repr__(self):
-        field_pairs = ((field, getattr(self, field)) for field in self.meta.fields)
-        field_reprs = ('{}={}'.format(field, repr(value)) for field, value in field_pairs)
-        return '{}({})'.format(self.__class__.__name__, ', '.join(field_reprs))
-
 
 class SimpleMessageMixin(object):
     @classmethod
