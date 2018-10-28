@@ -1,3 +1,14 @@
+from itertools import zip_longest
+
+
+def expect(a, b):
+    assert a == b
+
+
+def expect_all(a, b):
+    assert all(_a == _b for _a, _b in zip_longest(a, b))
+
+
 def coroutine(func):
     """
     A decorator to wrap a generator function into a callable interface.
