@@ -1,25 +1,24 @@
-from typing import cast, Callable, Dict, Iterable, Type, TypeVar
+from typing import cast, Callable, Dict, Iterable, Type
 
-from collections import namedtuple
+from dataclasses import dataclass
 
 from google.protobuf.message import Message as ProtoMessage
 
 
-MessageMeta = namedtuple('MessageMeta', ('discriminator', 'proto_class', 'fields'))
+@dataclass(frozen=True)
+class message:
+    proto_class: Type[ProtoMessage]
+    discriminator: str
+    fields: Iterable[str] = None
 
+    def __post_init__(self):
+        if self.fields is None:
+            fields = tuple(field.name for field in self.proto_class.DESCRIPTOR.fields)
+            object.__setattr__(self, 'fields', fields)
 
-def message(proto_class: Type[ProtoMessage], discriminator: str, fields: Iterable[str]=None)\
-        -> Callable[[Type['Message']], Type['Message']]:
-    if fields is None:
-        fields = tuple(field.name for field in proto_class.DESCRIPTOR.fields)
-
-    meta = MessageMeta(discriminator, proto_class, fields)
-
-    def decorator(message_class: Type[Message]) -> Type[Message]:
-        message_class.meta = meta
+    def __call__(self, message_class: Type['Message']) -> Type['Message']:
+        message_class.meta = self
         return message_class
-
-    return decorator
 
 
 class ContainerMessage(object):
