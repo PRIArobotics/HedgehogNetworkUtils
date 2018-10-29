@@ -1,4 +1,5 @@
 from typing import Union
+from dataclasses import dataclass
 
 from hedgehog.utils.protobuf import ContainerMessage, Message, SimpleMessageMixin, message
 from .proto import test_pb2
@@ -10,9 +11,9 @@ Msg2 = ContainerMessage(test_pb2.TestMessage2)
 
 
 @message(test_pb2.Test, 'test', fields=('field',))
+@dataclass(frozen=True)
 class DefaultTest(Message):
-    def __init__(self, field: int) -> None:
-        self.field = field
+    field: int
 
     def _serialize(self, msg: test_pb2.Test) -> None:
         msg.kind = DEFAULT
@@ -20,9 +21,9 @@ class DefaultTest(Message):
 
 
 @message(test_pb2.Test, 'test', fields=('field',))
+@dataclass(frozen=True)
 class AlternativeTest(Message):
-    def __init__(self, field: int) -> None:
-        self.field = field
+    field: int
 
     def _serialize(self, msg: test_pb2.Test) -> None:
         msg.kind = ALTERNATIVE
@@ -48,9 +49,11 @@ def parse_test(data: bytes) -> Union[DefaultTest, AlternativeTest]:
 
 @Msg1.message(test_pb2.SimpleTest, 'simple_test')
 @Msg2.message(test_pb2.SimpleTest, 'simple_test')
+@dataclass(frozen=True)
 class SimpleTest(Message, SimpleMessageMixin):
-    def __init__(self, field: int) -> None:
-        self.field = field
+    class_field = 'class_field_value'
+
+    field: int
 
     @classmethod
     def _parse(cls, msg: test_pb2.SimpleTest) -> 'SimpleTest':

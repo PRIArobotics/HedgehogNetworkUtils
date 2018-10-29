@@ -19,7 +19,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='hedgehog-utils',
-    version='0.5.1',
+    version='0.6.0',
     description='Utilities shared between Hedgehog projects',
     long_description=long_description,
     url="https://github.com/PRIArobotics/HedgehogUtils",
@@ -51,10 +51,10 @@ setup(
     # You can install these using the following syntax, for example:
     # $ pip install -e .[dev,test]
     extras_require={
-        'dev': ['invoke', 'pytest', 'pytest-runner', 'pytest-asyncio', 'pytest-cov'],
+        'dev': ['invoke',
+                'pytest', 'pytest-runner', 'pytest-asyncio', 'pytest-cov', 'pytest-timeout', 'mypy'],
         'protobuf': ['protobuf'],
-        'zmq': ['pyzmq>=17b'],
-        'discovery': ['pyre', 'pyzmq>=17b', 'protobuf'],
+        'zmq': ['pyzmq'],
     },
 
     # package_data={

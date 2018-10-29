@@ -2,7 +2,9 @@ from typing import Tuple, Union
 
 import zmq
 
-from itertools import zip_longest
+from .. import expect, expect_all
+
+__all__ = ['Socket', 'Fileno', 'SocketLike']
 
 
 class Socket(zmq.Socket):
@@ -10,7 +12,7 @@ class Socket(zmq.Socket):
     A zmq.Socket subclass that simply adds some convenience functions.
     """
 
-    def configure(self, hwm: int=None, rcvtimeo: int=None, sndtimeo: int=None, linger: int=None) -> 'Socket':
+    def configure(self, *, hwm: int=None, rcvtimeo: int=None, sndtimeo: int=None, linger: int=None) -> 'Socket':
         """
         Allows to configure some common socket options and configurations, while allowing method chaining
         """
@@ -40,15 +42,13 @@ class Socket(zmq.Socket):
         """
         Waits for the next message and asserts that it contains the given data.
         """
-        recvd = self.recv()
-        assert recvd == data
+        expect(self.recv(), data)
 
     def recv_multipart_expect(self, data: Tuple[bytes, ...]=(b'',)) -> None:
         """
         Waits for the next multipart message and asserts that it contains the given data.
         """
-        recvd = self.recv_multipart()
-        assert all(a == b for a, b in zip_longest(recvd, data))
+        expect_all(self.recv_multipart(), data)
 
 
 Fileno = int
