@@ -1,22 +1,22 @@
 language: python
-
-# using container based testing is faster, but you can't use sudo
 sudo: false
 
-python:
-    - "3.6"
-#    - "2.7"
+matrix:
+  include:
+    - python: 3.7
+      dist: xenial  # https://github.com/travis-ci/travis-ci/issues/9815
+      sudo: true
 
 # install other libraries using pip
 install:
-    - pip install -U setuptools
-    - pip install https://github.com/zeromq/pyre/archive/master.zip
-    - pip install -Ue .[dev,protobuf,zmq,discovery]
-    - wget https://github.com/google/protobuf/releases/download/v3.1.0/protoc-3.1.0-linux-x86_64.zip
-    - unzip protoc-3.1.0-linux-x86_64.zip
-    - PATH=./bin:$PATH
-    - invoke protoc
-    - export PYTHONPATH="./tests:$PYTHONPATH"
+  - pip install -U setuptools coveralls
+  - pip install -Ue .[dev,protobuf,zmq]
+  - wget https://github.com/google/protobuf/releases/download/v3.6.1/protoc-3.6.1-linux-x86_64.zip
+  - unzip protoc-3.6.1-linux-x86_64.zip
+  - PATH=./bin:$PATH
+  - invoke protoc
 
 # command to run tests
-script: pytest
+script:
+  - pytest
+  - coveralls
