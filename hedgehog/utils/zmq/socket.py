@@ -12,7 +12,7 @@ class Socket(zmq.Socket):
     A zmq.Socket subclass that simply adds some convenience functions.
     """
 
-    def configure(self, hwm: int=None, rcvtimeo: int=None, sndtimeo: int=None, linger: int=None) -> 'Socket':
+    def configure(self, *, hwm: int=None, rcvtimeo: int=None, sndtimeo: int=None, linger: int=None) -> 'Socket':
         """
         Allows to configure some common socket options and configurations, while allowing method chaining
         """
