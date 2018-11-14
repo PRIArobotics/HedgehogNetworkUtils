@@ -88,7 +88,7 @@ def event_loop():
 
 @pytest.fixture
 def zmq_ctx():
-    from .zmq.socket import Context
+    from .zmq import Context
 
     with Context() as ctx:
         yield ctx
@@ -96,7 +96,7 @@ def zmq_ctx():
 
 @pytest.fixture
 def zmq_aio_ctx():
-    from .zmq.async_socket import Context
+    from .zmq.asyncio import Context
 
     with Context() as ctx:
         yield ctx
