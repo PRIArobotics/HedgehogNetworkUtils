@@ -12,9 +12,7 @@ event_loop, zmq_ctx, zmq_aio_ctx
 class TestAsyncSocket(object):
     @pytest.mark.asyncio
     async def test_async_socket_configure(self, zmq_aio_ctx):
-        from hedgehog.utils.zmq.async_socket import Socket
-
-        with Socket(zmq_aio_ctx, zmq.PAIR).configure() as socket:
+        with zmq_aio_ctx.socket(zmq.PAIR).configure() as socket:
             assert socket.get_hwm() == 1000
             assert socket.getsockopt(zmq.RCVTIMEO) == -1
             assert socket.getsockopt(zmq.SNDTIMEO) == -1
@@ -28,9 +26,7 @@ class TestAsyncSocket(object):
 
     @pytest.mark.asyncio
     async def test_async_socket(self, zmq_aio_ctx):
-        from hedgehog.utils.zmq.async_socket import Socket
-
-        a, b = (Socket(zmq_aio_ctx, zmq.PAIR).configure(hwm=1000, linger=0) for _ in range(2))
+        a, b = (zmq_aio_ctx.socket(zmq.PAIR).configure(hwm=1000, linger=0) for _ in range(2))
         with a, b:
             a.bind('inproc://endpoint')
             b.connect('inproc://endpoint')
@@ -50,9 +46,7 @@ class TestAsyncSocket(object):
 
 class TestSocket(object):
     def test_async_socket_configure(self, zmq_ctx):
-        from hedgehog.utils.zmq.socket import Socket
-
-        with Socket(zmq_ctx, zmq.PAIR).configure() as socket:
+        with zmq_ctx.socket(zmq.PAIR).configure() as socket:
             assert socket.get_hwm() == 1000
             assert socket.getsockopt(zmq.RCVTIMEO) == -1
             assert socket.getsockopt(zmq.SNDTIMEO) == -1
@@ -65,9 +59,7 @@ class TestSocket(object):
             assert socket.getsockopt(zmq.LINGER) == 0
 
     def test_socket(self, zmq_ctx):
-        from hedgehog.utils.zmq.socket import Socket
-
-        a, b = (Socket(zmq_ctx, zmq.PAIR).configure(hwm=1000, linger=0) for _ in range(2))
+        a, b = (zmq_ctx.socket(zmq.PAIR).configure(hwm=1000, linger=0) for _ in range(2))
         with a, b:
             a.bind('inproc://endpoint')
             b.connect('inproc://endpoint')

@@ -4,7 +4,7 @@ import zmq.asyncio
 
 from .. import expect, expect_all
 
-__all__ = ['Socket', 'Fileno', 'SocketLike']
+__all__ = ['Context', 'Socket', 'Fileno', 'SocketLike']
 
 
 class Socket(zmq.asyncio.Socket):
@@ -49,6 +49,10 @@ class Socket(zmq.asyncio.Socket):
         Waits for the next multipart message and asserts that it contains the given data.
         """
         expect_all(await self.recv_multipart(), data)
+
+
+class Context(zmq.Context):
+    _socket_class = Socket
 
 
 Fileno = int

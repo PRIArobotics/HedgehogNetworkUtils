@@ -4,7 +4,7 @@ import zmq
 
 from .. import expect, expect_all
 
-__all__ = ['Socket', 'Fileno', 'SocketLike']
+__all__ = ['Context', 'Socket', 'Fileno', 'SocketLike']
 
 
 class Socket(zmq.Socket):
@@ -49,6 +49,10 @@ class Socket(zmq.Socket):
         Waits for the next multipart message and asserts that it contains the given data.
         """
         expect_all(self.recv_multipart(), data)
+
+
+class Context(zmq.Context):
+    _socket_class = Socket
 
 
 Fileno = int

@@ -4,7 +4,6 @@ import pytest
 import asyncio
 import logging
 import selectors
-import zmq.asyncio
 from contextlib import contextmanager
 
 
@@ -89,13 +88,17 @@ def event_loop():
 
 @pytest.fixture
 def zmq_ctx():
-    with zmq.Context() as ctx:
+    from .zmq.socket import Context
+
+    with Context() as ctx:
         yield ctx
 
 
 @pytest.fixture
 def zmq_aio_ctx():
-    with zmq.asyncio.Context() as ctx:
+    from .zmq.async_socket import Context
+
+    with Context() as ctx:
         yield ctx
 
 
