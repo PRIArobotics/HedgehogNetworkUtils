@@ -1,7 +1,7 @@
 import pytest
 from hedgehog.utils.test_utils import zmq_ctx
 from hedgehog.utils.test_utils import event_loop, zmq_aio_ctx, assertTimeout, assertPassed
-from hedgehog.utils.test_utils import zmq_trio_ctx, assertTimeoutTrio, assertPassedTrio
+from hedgehog.utils.test_utils import zmq_trio_ctx, assertTimeoutTrio
 
 import asyncio
 import trio_asyncio
@@ -100,13 +100,13 @@ class TestTrioSocket(object):
 
                 assert await b.poll(timeout=1) == 0
 
-                with assertPassedTrio(1):
+                with assertPassed(1):
                     with assertTimeoutTrio(1):
                         await b.wait()
                     await a.signal()
                     await b.wait()
 
-                with assertPassedTrio(1):
+                with assertPassed(1):
                     with assertTimeoutTrio(1):
                         await b.recv_multipart_expect((b'foo', b'bar'))
                     await a.send_multipart((b'foo', b'bar'))

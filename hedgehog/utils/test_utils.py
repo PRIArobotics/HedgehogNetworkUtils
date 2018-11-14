@@ -5,6 +5,7 @@ import pytest_trio
 import asyncio
 import logging
 import selectors
+from sniffio import current_async_library
 import trio
 from contextlib import contextmanager
 
@@ -146,9 +147,18 @@ def assertPassed(passed: float) -> Generator[None, None, None]:
     on the event loop.
     Naturally, exact timing can only work on a test event loop using simulated time.
     """
-    begin = asyncio.get_event_loop().time()
+
+    library = current_async_library()
+    if library == 'trio':
+        time = trio.current_time
+    elif library == 'asyncio':
+        time = asyncio.get_event_loop().time
+    else:
+        raise RuntimeError(f"Unsupported library {library!r}")
+
+    begin = time()
     yield
-    end = asyncio.get_event_loop().time()
+    end = time()
     assert end - begin == passed
 
 
@@ -168,26 +178,4 @@ def assertTimeoutTrio(timeout: float) -> Generator[None, None, None]:
     on the event loop.
     """
     with pytest.raises(trio.TooSlowError), trio.fail_after(timeout):
-        yield
-
-
-@contextmanager
-def assertPassedTrio(passed: float) -> Generator[None, None, None]:
-    """
-    A context manager that checks the code executed in its context has taken the exact given amount of time
-    on the event loop.
-    Naturally, exact timing can only work on a test event loop using simulated time.
-    """
-    begin = trio.current_time()
-    yield
-    end = trio.current_time()
-    assert end - begin == passed
-
-
-@contextmanager
-def assertImmediateTrio() -> Generator[None, None, None]:
-    """
-    Alias for assertPassed(0).
-    """
-    with assertPassed(0):
         yield
