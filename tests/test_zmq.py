@@ -5,7 +5,6 @@ from hedgehog.utils.test_utils import zmq_trio_ctx, assertTimeoutTrio
 
 import asyncio
 import trio_asyncio
-import trio.testing
 import zmq
 
 
