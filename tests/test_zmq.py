@@ -10,7 +10,7 @@ event_loop, zmq_ctx, zmq_aio_ctx
 
 
 class TestSocket(object):
-    def test_async_socket_configure(self, zmq_ctx):
+    def test_socket_configure(self, zmq_ctx):
         with zmq_ctx.socket(zmq.PAIR).configure() as socket:
             assert socket.get_hwm() == 1000
             assert socket.getsockopt(zmq.RCVTIMEO) == -1
