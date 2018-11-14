@@ -2,53 +2,15 @@ from typing import Tuple, Union
 
 import zmq.asyncio
 
-from .. import expect, expect_all
+from . import _ConfigureSocketMixin, _AsyncSocketExtensionsMixin
 
 __all__ = ['Context', 'Socket', 'Fileno', 'SocketLike']
 
 
-class Socket(zmq.asyncio.Socket):
+class Socket(_ConfigureSocketMixin, _AsyncSocketExtensionsMixin, zmq.asyncio.Socket):
     """
-    A zmq.Socket subclass that simply adds some convenience functions.
+    A zmq.Socket subclass that simply adds some convenience functions; asyncio version.
     """
-
-    def configure(self, *, hwm: int=None, rcvtimeo: int=None, sndtimeo: int=None, linger: int=None) -> 'Socket':
-        """
-        Allows to configure some common socket options and configurations, while allowing method chaining
-        """
-        if hwm is not None:
-            self.set_hwm(hwm)
-        if rcvtimeo is not None:
-            self.setsockopt(zmq.RCVTIMEO, rcvtimeo)
-        if sndtimeo is not None:
-            self.setsockopt(zmq.SNDTIMEO, sndtimeo)
-        if linger is not None:
-            self.setsockopt(zmq.LINGER, linger)
-        return self
-
-    async def signal(self) -> None:
-        """
-        Sends an empty single-frame message, i.e. an event with no data attached.
-        """
-        await self.send(b'')
-
-    async def wait(self) -> None:
-        """
-        Waits for the next message and asserts that it contained no data, such as those sent by `signal()`.
-        """
-        await self.recv_expect(b'')
-
-    async def recv_expect(self, data: bytes=b'') -> None:
-        """
-        Waits for the next message and asserts that it contains the given data.
-        """
-        expect(await self.recv(), data)
-
-    async def recv_multipart_expect(self, data: Tuple[bytes, ...]=(b'',)) -> None:
-        """
-        Waits for the next multipart message and asserts that it contains the given data.
-        """
-        expect_all(await self.recv_multipart(), data)
 
 
 class Context(zmq.Context):

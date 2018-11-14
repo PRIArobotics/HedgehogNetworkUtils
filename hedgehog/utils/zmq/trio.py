@@ -4,14 +4,14 @@ import zmq.asyncio
 
 from trio_asyncio import aio_as_trio
 
-from .asyncio import Socket as _Socket
+from . import _ConfigureSocketMixin, _AsyncSocketExtensionsMixin
 
 __all__ = ['Context', 'Socket', 'Fileno', 'SocketLike']
 
 
-class Socket(_Socket):
+class Socket(_ConfigureSocketMixin, _AsyncSocketExtensionsMixin, zmq.asyncio.Socket):
     """
-    A zmq.Socket subclass that simply adds some convenience functions.
+    A zmq.Socket subclass that simply adds some convenience functions; trio version.
     """
 
     @aio_as_trio
