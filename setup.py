@@ -52,9 +52,10 @@ setup(
     # $ pip install -e .[dev,test]
     extras_require={
         'dev': ['invoke',
-                'pytest', 'pytest-runner', 'pytest-asyncio', 'pytest-cov', 'pytest-timeout', 'mypy'],
+                'pytest', 'pytest-runner', 'pytest-asyncio', 'pytest-trio', 'pytest-cov', 'pytest-timeout', 'mypy'],
         'protobuf': ['protobuf'],
         'zmq': ['pyzmq'],
+        'trio': ['trio', 'trio-asyncio'],
     },
 
     # package_data={

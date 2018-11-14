@@ -1,9 +1,11 @@
 from typing import Any, Generator, List
 
 import pytest
+import pytest_trio
 import asyncio
 import logging
 import selectors
+import trio
 from contextlib import contextmanager
 
 
@@ -102,6 +104,14 @@ def zmq_aio_ctx():
         yield ctx
 
 
+@pytest_trio.trio_fixture
+def zmq_trio_ctx():
+    from .zmq.trio import Context
+
+    with Context() as ctx:
+        yield ctx
+
+
 @pytest.fixture
 def check_caplog(caplog):
     class CheckCaplog:
@@ -148,6 +158,38 @@ def assertPassed(passed: float) -> Generator[None, None, None]:
 
 @contextmanager
 def assertImmediate() -> Generator[None, None, None]:
+    """
+    Alias for assertPassed(0).
+    """
+    with assertPassed(0):
+        yield
+
+
+@contextmanager
+def assertTimeoutTrio(timeout: float) -> Generator[None, None, None]:
+    """
+    A context manager that checks the code executed in its context was not done after the given amount of time
+    on the event loop.
+    """
+    with pytest.raises(trio.TooSlowError), trio.fail_after(timeout):
+        yield
+
+
+@contextmanager
+def assertPassedTrio(passed: float) -> Generator[None, None, None]:
+    """
+    A context manager that checks the code executed in its context has taken the exact given amount of time
+    on the event loop.
+    Naturally, exact timing can only work on a test event loop using simulated time.
+    """
+    begin = trio.current_time()
+    yield
+    end = trio.current_time()
+    assert end - begin == passed
+
+
+@contextmanager
+def assertImmediateTrio() -> Generator[None, None, None]:
     """
     Alias for assertPassed(0).
     """
