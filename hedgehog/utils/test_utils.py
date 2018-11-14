@@ -135,12 +135,8 @@ async def assertTimeout(fut: asyncio.Future, timeout: float, shield: bool=False)
     """
     if shield:
         fut = asyncio.shield(fut)
-    try:
-        result = await asyncio.wait_for(fut, timeout)
-    except asyncio.TimeoutError:
-        pass
-    else:
-        assert False, result
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(fut, timeout)
 
 
 @contextmanager
