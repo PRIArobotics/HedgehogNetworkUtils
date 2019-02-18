@@ -4,7 +4,6 @@ import pytest
 import asyncio
 import logging
 import selectors
-from sniffio import current_async_library
 from contextlib import contextmanager
 
 
@@ -138,7 +137,13 @@ def assertPassed(passed: float) -> Generator[None, None, None]:
     Naturally, exact timing can only work on a test event loop using simulated time.
     """
 
-    library = current_async_library()
+    try:
+        from sniffio import current_async_library
+    except ImportError:
+        library = 'asyncio'
+    else:
+        library = current_async_library()
+
     if library == 'trio':
         import trio
         time = trio.current_time
