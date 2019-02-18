@@ -1,12 +1,10 @@
 from typing import Any, Generator, List
 
 import pytest
-import pytest_trio
 import asyncio
 import logging
 import selectors
 from sniffio import current_async_library
-import trio
 from contextlib import contextmanager
 
 
@@ -105,14 +103,6 @@ def zmq_aio_ctx():
         yield ctx
 
 
-@pytest_trio.trio_fixture
-def zmq_trio_ctx():
-    from .zmq.trio import Context
-
-    with Context() as ctx:
-        yield ctx
-
-
 @pytest.fixture
 def check_caplog(caplog):
     class CheckCaplog:
@@ -150,6 +140,7 @@ def assertPassed(passed: float) -> Generator[None, None, None]:
 
     library = current_async_library()
     if library == 'trio':
+        import trio
         time = trio.current_time
     elif library == 'asyncio':
         time = asyncio.get_event_loop().time
@@ -171,11 +162,25 @@ def assertImmediate() -> Generator[None, None, None]:
         yield
 
 
-@contextmanager
-def assertTimeoutTrio(timeout: float) -> Generator[None, None, None]:
-    """
-    A context manager that checks the code executed in its context was not done after the given amount of time
-    on the event loop.
-    """
-    with pytest.raises(trio.TooSlowError), trio.fail_after(timeout):
-        yield
+try:
+    import trio
+    import pytest_trio
+except ImportError:
+    pass
+else:
+    @pytest_trio.trio_fixture
+    def zmq_trio_ctx():
+        from .zmq.trio import Context
+
+        with Context() as ctx:
+            yield ctx
+
+
+    @contextmanager
+    def assertTimeoutTrio(timeout: float) -> Generator[None, None, None]:
+        """
+        A context manager that checks the code executed in its context was not done after the given amount of time
+        on the event loop.
+        """
+        with pytest.raises(trio.TooSlowError), trio.fail_after(timeout):
+            yield
