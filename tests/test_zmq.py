@@ -1,88 +1,112 @@
 import pytest
-from hedgehog.utils.test_utils import event_loop, zmq_ctx, zmq_aio_ctx, assertTimeout, assertImmediate
+from hedgehog.utils.test_utils import zmq_ctx
+from hedgehog.utils.test_utils import event_loop, zmq_aio_ctx, assertTimeout, assertPassed
+from hedgehog.utils.test_utils import zmq_trio_ctx, assertTimeoutTrio
 
 import asyncio
+import trio_asyncio
 import zmq
 
 
 # Pytest fixtures
-event_loop, zmq_ctx, zmq_aio_ctx
+event_loop, zmq_ctx, zmq_aio_ctx, zmq_trio_ctx
+
+
+def do_test_socket_configure(socket):
+    assert socket.get_hwm() == 1000
+    assert socket.getsockopt(zmq.RCVTIMEO) == -1
+    assert socket.getsockopt(zmq.SNDTIMEO) == -1
+    assert socket.getsockopt(zmq.LINGER) == -1
+
+    socket.configure(hwm=2000, rcvtimeo=100, sndtimeo=100, linger=0)
+    assert socket.get_hwm() == 2000
+    assert socket.getsockopt(zmq.RCVTIMEO) == 100
+    assert socket.getsockopt(zmq.SNDTIMEO) == 100
+    assert socket.getsockopt(zmq.LINGER) == 0
+
+
+class TestSocket(object):
+    def test_socket_configure(self, zmq_ctx):
+        with zmq_ctx.socket(zmq.PAIR).configure() as socket:
+            do_test_socket_configure(socket)
+
+    def test_socket(self, zmq_ctx):
+        a, b = (zmq_ctx.socket(zmq.PAIR).configure(hwm=1000, linger=0) for _ in range(2))
+        with a, b:
+            a.bind('inproc://endpoint')
+            b.connect('inproc://endpoint')
+
+            assert b.poll(0.01) == 0
+
+            a.signal()
+            assert b.poll(0.01) == zmq.POLLIN
+            b.wait()
+
+            assert b.poll(0.01) == 0
+
+            a.send_multipart((b'foo', b'bar'))
+            assert b.poll(0.01) == zmq.POLLIN
+            b.recv_multipart_expect((b'foo', b'bar'))
 
 
 class TestAsyncSocket(object):
     @pytest.mark.asyncio
     async def test_async_socket_configure(self, zmq_aio_ctx):
-        from hedgehog.utils.zmq.async_socket import Socket
-
-        with Socket(zmq_aio_ctx, zmq.PAIR).configure() as socket:
-            assert socket.get_hwm() == 1000
-            assert socket.getsockopt(zmq.RCVTIMEO) == -1
-            assert socket.getsockopt(zmq.SNDTIMEO) == -1
-            assert socket.getsockopt(zmq.LINGER) == -1
-
-            socket.configure(hwm=2000, rcvtimeo=100, sndtimeo=100, linger=0)
-            assert socket.get_hwm() == 2000
-            assert socket.getsockopt(zmq.RCVTIMEO) == 100
-            assert socket.getsockopt(zmq.SNDTIMEO) == 100
-            assert socket.getsockopt(zmq.LINGER) == 0
+        with zmq_aio_ctx.socket(zmq.PAIR).configure() as socket:
+            do_test_socket_configure(socket)
 
     @pytest.mark.asyncio
     async def test_async_socket(self, zmq_aio_ctx):
-        from hedgehog.utils.zmq.async_socket import Socket
-
-        a, b = (Socket(zmq_aio_ctx, zmq.PAIR).configure(hwm=1000, linger=0) for _ in range(2))
+        a, b = (zmq_aio_ctx.socket(zmq.PAIR).configure(hwm=1000, linger=0) for _ in range(2))
         with a, b:
             a.bind('inproc://endpoint')
             b.connect('inproc://endpoint')
 
-            task = asyncio.ensure_future(b.wait())
-            await assertTimeout(task, 1, shield=True)
-            with assertImmediate():
+            await assertTimeout(b.poll(), 1)
+
+            assert await b.poll(1) == 0
+
+            with assertPassed(1):
+                task = asyncio.ensure_future(b.wait())
+                await assertTimeout(task, 1, shield=True)
                 await a.signal()
                 await task
 
-            task = asyncio.ensure_future(b.recv_multipart_expect((b'foo', b'bar')))
-            await assertTimeout(task, 1, shield=True)
-            with assertImmediate():
+            with assertPassed(1):
+                task = asyncio.ensure_future(b.recv_multipart_expect((b'foo', b'bar')))
+                await assertTimeout(task, 1, shield=True)
                 await a.send_multipart((b'foo', b'bar'))
                 await task
 
 
-class TestSocket(object):
-    def test_async_socket_configure(self, zmq_ctx):
-        from hedgehog.utils.zmq.socket import Socket
+class TestTrioSocket(object):
+    @pytest.mark.trio
+    async def test_trio_socket_configure(self, zmq_trio_ctx, autojump_clock):
+        async with trio_asyncio.open_loop():
+            with zmq_trio_ctx.socket(zmq.PAIR).configure() as socket:
+                do_test_socket_configure(socket)
 
-        with Socket(zmq_ctx, zmq.PAIR).configure() as socket:
-            assert socket.get_hwm() == 1000
-            assert socket.getsockopt(zmq.RCVTIMEO) == -1
-            assert socket.getsockopt(zmq.SNDTIMEO) == -1
-            assert socket.getsockopt(zmq.LINGER) == -1
+    @pytest.mark.trio
+    async def test_trio_socket(self, zmq_trio_ctx, autojump_clock):
+        async with trio_asyncio.open_loop():
+            a, b = (zmq_trio_ctx.socket(zmq.PAIR).configure(hwm=1000, linger=0) for _ in range(2))
+            with a, b:
+                a.bind('inproc://endpoint')
+                b.connect('inproc://endpoint')
 
-            socket.configure(hwm=2000, rcvtimeo=100, sndtimeo=100, linger=0)
-            assert socket.get_hwm() == 2000
-            assert socket.getsockopt(zmq.RCVTIMEO) == 100
-            assert socket.getsockopt(zmq.SNDTIMEO) == 100
-            assert socket.getsockopt(zmq.LINGER) == 0
+                with assertTimeoutTrio(1):
+                    await b.poll()
 
-    def test_socket(self, zmq_ctx):
-        from hedgehog.utils.zmq.socket import Socket
+                assert await b.poll(timeout=1) == 0
 
-        a, b = (Socket(zmq_ctx, zmq.PAIR).configure(hwm=1000, linger=0) for _ in range(2))
-        with a, b:
-            a.bind('inproc://endpoint')
-            b.connect('inproc://endpoint')
+                with assertPassed(1):
+                    with assertTimeoutTrio(1):
+                        await b.wait()
+                    await a.signal()
+                    await b.wait()
 
-            poller = zmq.Poller()
-            poller.register(b, zmq.POLLIN)
-
-            assert poller.poll(0.01) == []
-
-            a.signal()
-            assert poller.poll(0.01) == [(b, zmq.POLLIN)]
-            b.wait()
-
-            assert poller.poll(0.01) == []
-
-            a.send_multipart((b'foo', b'bar'))
-            assert poller.poll(0.01) == [(b, zmq.POLLIN)]
-            b.recv_multipart_expect((b'foo', b'bar'))
+                with assertPassed(1):
+                    with assertTimeoutTrio(1):
+                        await b.recv_multipart_expect((b'foo', b'bar'))
+                    await a.send_multipart((b'foo', b'bar'))
+                    await b.recv_multipart_expect((b'foo', b'bar'))

@@ -1,10 +1,12 @@
 from typing import Any, Generator, List
 
 import pytest
+import pytest_trio
 import asyncio
 import logging
 import selectors
-import zmq.asyncio
+from sniffio import current_async_library
+import trio
 from contextlib import contextmanager
 
 
@@ -89,13 +91,25 @@ def event_loop():
 
 @pytest.fixture
 def zmq_ctx():
-    with zmq.Context() as ctx:
+    from .zmq import Context
+
+    with Context() as ctx:
         yield ctx
 
 
 @pytest.fixture
 def zmq_aio_ctx():
-    with zmq.asyncio.Context() as ctx:
+    from .zmq.asyncio import Context
+
+    with Context() as ctx:
+        yield ctx
+
+
+@pytest_trio.trio_fixture
+def zmq_trio_ctx():
+    from .zmq.trio import Context
+
+    with Context() as ctx:
         yield ctx
 
 
@@ -122,12 +136,8 @@ async def assertTimeout(fut: asyncio.Future, timeout: float, shield: bool=False)
     """
     if shield:
         fut = asyncio.shield(fut)
-    try:
-        result = await asyncio.wait_for(fut, timeout)
-    except asyncio.TimeoutError:
-        pass
-    else:
-        assert False, result
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(fut, timeout)
 
 
 @contextmanager
@@ -137,9 +147,18 @@ def assertPassed(passed: float) -> Generator[None, None, None]:
     on the event loop.
     Naturally, exact timing can only work on a test event loop using simulated time.
     """
-    begin = asyncio.get_event_loop().time()
+
+    library = current_async_library()
+    if library == 'trio':
+        time = trio.current_time
+    elif library == 'asyncio':
+        time = asyncio.get_event_loop().time
+    else:
+        raise RuntimeError(f"Unsupported library {library!r}")
+
+    begin = time()
     yield
-    end = asyncio.get_event_loop().time()
+    end = time()
     assert end - begin == passed
 
 
@@ -149,4 +168,14 @@ def assertImmediate() -> Generator[None, None, None]:
     Alias for assertPassed(0).
     """
     with assertPassed(0):
+        yield
+
+
+@contextmanager
+def assertTimeoutTrio(timeout: float) -> Generator[None, None, None]:
+    """
+    A context manager that checks the code executed in its context was not done after the given amount of time
+    on the event loop.
+    """
+    with pytest.raises(trio.TooSlowError), trio.fail_after(timeout):
         yield
