@@ -1,5 +1,5 @@
 import pytest
-from hedgehog.utils.test_utils import event_loop, assertTimeout, assertImmediate
+from hedgehog.utils.test_utils import event_loop, assertImmediate
 
 import asyncio
 import itertools
