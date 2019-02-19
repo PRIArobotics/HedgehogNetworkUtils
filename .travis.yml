@@ -3,14 +3,38 @@ sudo: false
 
 matrix:
   include:
-    - python: '3.7'
-      dist: xenial  # https://github.com/travis-ci/travis-ci/issues/9815
-      sudo: true
+  - name: "Python 3.7 bare features"
+    python: '3.7'
+    dist: xenial  # https://github.com/travis-ci/travis-ci/issues/9815
+    sudo: true
+    env: EXTRAS='[dev]'
+  - name: "Python 3.7 protobuf"
+    python: '3.7'
+    dist: xenial  # https://github.com/travis-ci/travis-ci/issues/9815
+    sudo: true
+    env: EXTRAS='[dev,protobuf]'
+  - name: "Python 3.7 zmq"
+    python: '3.7'
+    dist: xenial  # https://github.com/travis-ci/travis-ci/issues/9815
+    sudo: true
+    env: EXTRAS='[dev,zmq]'
+  - name: "Python 3.7 trio"
+    python: '3.7'
+    dist: xenial  # https://github.com/travis-ci/travis-ci/issues/9815
+    sudo: true
+    env: EXTRAS='[dev,trio]'
+  - name: "Python 3.7 full features & coverage"
+    python: '3.7'
+    dist: xenial  # https://github.com/travis-ci/travis-ci/issues/9815
+    sudo: true
+    env:
+    - EXTRAS='[dev,protobuf,zmq,trio]'
+    - COVERAGE=1
 
 # install other libraries using pip
 install:
   - pip install -U setuptools coveralls
-  - pip install -Ue .[dev,protobuf,zmq,trio]
+  - pip install -Ue .$EXTRAS
   - wget https://github.com/google/protobuf/releases/download/v3.6.1/protoc-3.6.1-linux-x86_64.zip
   - unzip protoc-3.6.1-linux-x86_64.zip
   - PATH=./bin:$PATH
@@ -19,4 +43,4 @@ install:
 # command to run tests
 script:
   - pytest
-  - coveralls
+  - test "$COVERAGE" != 1 || coveralls
