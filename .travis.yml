@@ -18,11 +18,11 @@ matrix:
     dist: xenial  # https://github.com/travis-ci/travis-ci/issues/9815
     sudo: true
     env: EXTRAS='[dev,zmq]'
-  - name: "Python 3.7 trio"
+  - name: "Python 3.7 zmq+trio"
     python: '3.7'
     dist: xenial  # https://github.com/travis-ci/travis-ci/issues/9815
     sudo: true
-    env: EXTRAS='[dev,trio]'
+    env: EXTRAS='[dev,zmq,trio]'
   - name: "Python 3.7 full features & coverage"
     python: '3.7'
     dist: xenial  # https://github.com/travis-ci/travis-ci/issues/9815
