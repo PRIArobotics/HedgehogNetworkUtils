@@ -7,22 +7,30 @@ matrix:
     python: '3.7'
     dist: xenial  # https://github.com/travis-ci/travis-ci/issues/9815
     sudo: true
-    env: EXTRAS='[dev]'
+    env:
+    - EXTRAS='[dev]'
+    - PYTEST_ADDOPTS='--ignore=hedgehog'
   - name: "Python 3.7 protobuf"
     python: '3.7'
     dist: xenial  # https://github.com/travis-ci/travis-ci/issues/9815
     sudo: true
-    env: EXTRAS='[dev,protobuf]'
+    env:
+    - EXTRAS='[dev,protobuf]'
+    - PYTEST_ADDOPTS='--ignore=hedgehog'
   - name: "Python 3.7 zmq"
     python: '3.7'
     dist: xenial  # https://github.com/travis-ci/travis-ci/issues/9815
     sudo: true
-    env: EXTRAS='[dev,zmq]'
+    env:
+    - EXTRAS='[dev,zmq]'
+    - PYTEST_ADDOPTS='--ignore=hedgehog'
   - name: "Python 3.7 zmq+trio"
     python: '3.7'
     dist: xenial  # https://github.com/travis-ci/travis-ci/issues/9815
     sudo: true
-    env: EXTRAS='[dev,zmq,trio]'
+    env:
+    - EXTRAS='[dev,zmq,trio]'
+    - PYTEST_ADDOPTS='--ignore=hedgehog'
   - name: "Python 3.7 full features & coverage"
     python: '3.7'
     dist: xenial  # https://github.com/travis-ci/travis-ci/issues/9815
