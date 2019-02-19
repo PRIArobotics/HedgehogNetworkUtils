@@ -169,11 +169,10 @@ def assertImmediate() -> Generator[None, None, None]:
 
 try:
     import trio
-    import pytest_trio
 except ImportError:
     pass
 else:
-    @pytest_trio.trio_fixture
+    @pytest.fixture
     def zmq_trio_ctx():
         from .zmq.trio import Context
 
